@@ -1,3 +1,6 @@
+[![Docker Pulls](https://img.shields.io/docker/pulls/bsencan/jedi-academy-server.svg)](https://hub.docker.com/r/bsencan/jedi-academy-server/)
+[![Gitter](https://img.shields.io/gitter/room/isair/jedi-academy-server.js.svg)](https://gitter.im/isair/jedi-academy-server)
+
 Jedi Academy server solution without any headaches.
 
 Usage
