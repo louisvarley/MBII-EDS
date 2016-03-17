@@ -17,9 +17,43 @@ docker run \
   -e SERVER_CFG="CFG_FILE"
 ```
 
-The last two lines are optional. If not defined, `FS_GAME` defaults to `base` and `SERVER_CFG` default to `server.cfg`.
+The last two lines are optional. If not defined, `FS_GAME` defaults to `base` and `SERVER_CFG` defaults to `server.cfg`.
 
-All your game files (e.g. `base` and other folders with `pk3` files in it) and `server.cfg` must be in the path you'll replace `PATH_TO_GAME_FILES` with.
+All your game files (e.g. `server.cfg`, `base` and other folders with `pk3` files in them) must be in the path you'll replace `PATH_TO_GAME_FILES` with.
+
+Stackfile
+---
+
+You can set up multiple servers in the blink of an eye.
+
+```yml
+ffa:
+  image: bsencan/jedi-academy-server:latest
+  restart: on-failure
+  ports:
+    - "29070:29070/udp"
+  volumes:
+    - PATH_TO_GAME_FILES:/jedi-academy
+duels:
+  image: bsencan/jedi-academy-server:latest
+  restart: on-failure
+  ports:
+    - "29070:29071/udp"
+  volumes:
+    - PATH_TO_GAME_FILES:/jedi-academy
+  environment:
+    - SERVER_CFG=duel_server.cfg
+mb2_duels:
+  image: bsencan/jedi-academy-server:latest
+  restart: on-failure
+  ports:
+    - "29070:29072/udp"
+  volumes:
+    - PATH_TO_GAME_FILES:/jedi-academy
+  environment:
+    - FS_GAME=MBII
+    - SERVER_CFG=mb2_duel_server.cfg
+```
 
 Development
 ---
