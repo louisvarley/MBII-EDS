@@ -2,7 +2,7 @@ FROM centos
 MAINTAINER Baris Sencan <baris.sncn@gmail.com>
 
 # Expose Jedi Academy ports.
-EXPOSE 29060-29062/udp 29070-29081/udp
+EXPOSE 29070/udp
 
 # Install dependencies.
 RUN yum install -y glibc.i686
