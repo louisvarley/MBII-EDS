@@ -14,10 +14,10 @@ COPY server/linuxjampded /opt/ja-server/linuxjampded
 COPY server/jampgamei386.so /opt/ja-server/jampgamei386.so
 COPY server/start.sh /opt/ja-server/start.sh
 
-# Mount game data volume and link server configuration file.
+# Mount game data volume and link server configuration files.
 VOLUME /jedi-academy
 RUN mkdir -p /root/.ja/base
-RUN ln -s /jedi-academy/server.cfg /root/.ja/base/server.cfg
+RUN ln -s /jedi-academy/*.cfg /root/.ja/base
 
 # Set the working directory to where the Jedi Academy data files will be
 # mounted at, so that linuxjampded finds them.

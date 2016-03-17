@@ -38,7 +38,7 @@ duels:
   image: bsencan/jedi-academy-server:latest
   restart: on-failure
   ports:
-    - "29070:29071/udp"
+    - "29071:29070/udp"
   volumes:
     - PATH_TO_GAME_FILES:/jedi-academy
   environment:
@@ -47,7 +47,7 @@ mb2_duels:
   image: bsencan/jedi-academy-server:latest
   restart: on-failure
   ports:
-    - "29070:29072/udp"
+    - "29072:29070/udp"
   volumes:
     - PATH_TO_GAME_FILES:/jedi-academy
   environment:
