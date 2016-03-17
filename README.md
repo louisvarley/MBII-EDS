@@ -13,10 +13,11 @@ Then run it
 docker run \
   bsencan/jedi-academy-server \
   -v "PATH_TO_GAME_FILES":"/jedi-academy" \
-  -e FS_GAME="MOD_NAME"
+  -e FS_GAME="MOD_NAME" \
+  -e SERVER_CFG="CFG_FILE"
 ```
 
-The last line with `FS_GAME` is optional. If not defined, it defaults to `base`.
+The last two lines are optional. If not defined, `FS_GAME` defaults to `base` and `SERVER_CFG` default to `server.cfg`.
 
 All your game files (e.g. `base` and other folders with `pk3` files in it) and `server.cfg` must be in the path you'll replace `PATH_TO_GAME_FILES` with.
 
