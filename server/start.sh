@@ -1,5 +1,6 @@
 #! /bin/bash
 
+[ -z "$NET_PORT" ] && NET_PORT=29070
 [ -z "$FS_GAME" ] && FS_GAME=base
 [ -z "$SERVER_CFG" ] && SERVER_CFG=server.cfg
 
@@ -10,5 +11,6 @@ cp /jedi-academy/*.cfg /root/.ja/base
 
 /opt/ja-server/linuxjampded \
   +set dedicated 2 \
+  +set net_port "$NET_PORT" \
   +set fs_game "$FS_GAME" \
   +exec "$SERVER_CFG"
