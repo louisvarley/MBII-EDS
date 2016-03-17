@@ -2,6 +2,7 @@
 
 GAME_APP_PATH="/Volumes/Storage/SteamLibrary/steamapps/common/Jedi Academy/SWJKJA.app"
 FS_GAME="base"
+SERVER_CFG="server.cfg"
 
 docker rm -f ja
 
@@ -12,5 +13,6 @@ docker run \
   --name ja \
   -v "$GAME_APP_PATH/Contents":"/jedi-academy" \
   -e FS_GAME="$FS_GAME" \
+  -e SERVER_CFG="$SERVER_CFG" \
   --net=host \
   bsencan/jedi-academy-server
