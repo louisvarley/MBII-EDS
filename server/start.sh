@@ -15,6 +15,15 @@ if [ "$FS_GAME" = base ]; then
   SET_FS_GAME=""
 fi
 
+# If an rtvrtm configuration file has been defined and it exists, start rtvrtm.
+RTVRTM_CFG_PATH="/root/.ja/base/$RTVRTM_CFG"
+if [ -f "$RTVRTM_CFG_PATH" ]; then
+  cp /jedi-academy/*.txt /opt/rtvrtm
+  mv "$RTVRTM_CFG_PATH" /opt/rtvrtm/rtvrtm.cfg
+  (sleep 10; python /opt/rtvrtm/rtvrtm.py -c /opt/rtvrtm/rtvrtm.cfg) &
+fi
+
+# Start the server.
 /opt/ja-server/linuxjampded \
   +set dedicated 2 \
   +set net_port "$NET_PORT" \

@@ -4,6 +4,7 @@ GAME_APP_PATH="/Volumes/Storage/SteamLibrary/steamapps/common/Jedi Academy/SWJKJ
 NET_PORT=29071
 FS_GAME=base
 SERVER_CFG=server.cfg
+RTVRTM_CFG=rtvrtm.cfg
 
 docker rm -f ja
 
@@ -16,5 +17,6 @@ docker run \
   -e NET_PORT="$NET_PORT" \
   -e FS_GAME="$FS_GAME" \
   -e SERVER_CFG="$SERVER_CFG" \
+  -e RTVRTM_CFG="$RTVRTM_CFG" \
   --net=host \
   bsencan/jedi-academy-server
