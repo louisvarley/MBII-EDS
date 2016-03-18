@@ -1,7 +1,13 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/bsencan/jedi-academy-server.svg)](https://hub.docker.com/r/bsencan/jedi-academy-server/)
 [![Gitter](https://img.shields.io/gitter/room/isair/jedi-academy-server.js.svg)](https://gitter.im/isair/jedi-academy-server)
 
-Jedi Academy server solution without any headaches.
+The purpose of the project is to provide the JA community the means to set up scalable and solid servers, easily and quickly.
+
+Table of Contents
+---
+1. [Usage](#usage)
+2. [Stackfile](#stackfile)
+4. [Development](#development)
 
 Usage
 ---
@@ -18,12 +24,13 @@ docker run \
   -v "PATH_TO_GAME_FILES":"/jedi-academy" \
   -e NET_PORT=YOUR_SERVER_PORT \
   -e FS_GAME=MOD_NAME \
-  -e SERVER_CFG=CFG_FILE
+  -e SERVER_CFG=CFG_FILE \
+  -e RTVRTM_CFG=RTVRTM_CFG_FILE
 ```
 
-The last three lines are optional. If not defined, `NET_PORT` defaults to 29070, `FS_GAME` defaults to `base`, and `SERVER_CFG` defaults to `server.cfg`.
+All environment variables are optional. If not defined, `NET_PORT` defaults to 29070, `FS_GAME` defaults to `base`, and `SERVER_CFG` defaults to `server.cfg`, and `RTVRTM_CFG` defaults to blank (which means rtvrtm won't be initialized).
 
-All your game files (e.g. `server.cfg`, `base` and other folders with `pk3` files in them) must be in the path you'll replace `PATH_TO_GAME_FILES` with.
+All your game and configuration files (e.g. `server.cfg`, `rtvrtm.cfg`, `maps.txt`, `base` and other folders with `pk3` files in them) must be in the path you'll replace `PATH_TO_GAME_FILES` with.
 
 Stackfile
 ---
@@ -59,6 +66,7 @@ mb2_duels:
     - NET_PORT=29072
     - FS_GAME=MBII
     - SERVER_CFG=mb2_duel_server.cfg
+    - RTVRTM_CFG=duel_rtvrtm.cfg
 ```
 
 Development
