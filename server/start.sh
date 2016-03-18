@@ -1,16 +1,22 @@
 #! /bin/bash
 
+# Environment variables and their default values.
 [ -z "$NET_PORT" ] && NET_PORT=29070
 [ -z "$FS_GAME" ] && FS_GAME=base
 [ -z "$SERVER_CFG" ] && SERVER_CFG=server.cfg
 
-echo "Starting dedicated JA server from $SERVER_CFG (fs_game=$FS_GAME)"
-
+# Configuration files need to be under /root/.ja/base directory.
 mkdir -p /root/.ja/base
 cp /jedi-academy/*.cfg /root/.ja/base
+
+# Shouldn't +set fs_game for base.
+SET_FS_GAME="+set fs_game $FS_GAME"
+if [ "$FS_GAME" = base ]; then
+  SET_FS_GAME=""
+fi
 
 /opt/ja-server/linuxjampded \
   +set dedicated 2 \
   +set net_port "$NET_PORT" \
-  +set fs_game "$FS_GAME" \
+  "$SET_FS_GAME" \
   +exec "$SERVER_CFG"
