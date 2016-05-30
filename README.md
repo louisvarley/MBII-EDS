@@ -7,6 +7,7 @@ Table of Contents
 ---
 1. [Usage](#usage)
 2. [Stackfile](#stackfile)
+3. [My Servers](#my-servers)
 4. [Development](#development)
 
 Usage
@@ -68,6 +69,25 @@ mb2_duels:
     - SERVER_CFG=mb2_duel_server.cfg
     - RTVRTM_CFG=duel_rtvrtm.cfg
 ```
+
+My Servers
+---
+
+Here is a list of my Jedi Academy servers. All servers are up 24/7, they are hosted on docker cloud with automatic restart on failure.
+
+A full installation of the [MBII](https://www.moviebattles.org/) mod is required to join.
+
+**Vote Your Fun Map [FA|RTV]**  
+107.170.198.217:29073
+
+**Vote Your Map [FA|RTV]**  
+107.170.198.217:29071
+
+**Vote Your Map [Open|RTV]**  
+107.170.198.217:29072
+
+**Vote Your Map [Duel|RTV]** (Closed until I find good admins)
+107.170.198.217:29070
 
 Development
 ---
