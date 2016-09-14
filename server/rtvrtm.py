@@ -1,7 +1,5 @@
 #!/usr/bin/python -uSOO
-
 # Copyright (c) 2012-2013, klax / Cthulhu@GBITnet.com.br
-# Updated by Baris Sencan / baris.sncn@gmail.com
 # All rights reserved.
 #
 # Redistribution and use in source and binary forms, with or without
@@ -49,8 +47,8 @@ from zipfile import ZipFile, BadZipfile
 from tarfile import open as TarFile
 from traceback import format_exc
 
-VERSION = "3.7"
-CFG = "3.7"
+VERSION = "3.6b"
+CFG = "3.6b"
 SLEEP_INTERVAL = 0.075
 MAPLIST_MAX_SIZE = 750
 REPORT_UNHANDLED_EXCEPTION = False
@@ -86,7 +84,7 @@ class SortableDict(dict):
   """Dictionary subclass that can return sorted items."""
 
   def sorteditems(self):
-
+    
     return iter(sorted(self.iteritems()))
 
 class DummyTime(object):
@@ -106,7 +104,7 @@ def report_unhandled_exception(bugreport):
   bugreport = "%s\\%s" % (VERSION, bugreport)
 
   for i in xrange(3): # Attempt to send the bug report for a maximum of 3 times.
-
+  
     sock = socket(AF_INET, SOCK_STREAM) # TCP layer.
     sock.settimeout(3.5)
 
@@ -130,7 +128,7 @@ def report_unhandled_exception(bugreport):
       status = "Refused/Unreachable!"
 
       if i < 2:
-
+      
         sleep(3.5)
 
     finally:
@@ -146,6 +144,222 @@ def report_unhandled_exception(bugreport):
       sock.close()
 
   print("%s\n" % (status))
+
+def updater(filename, filecode):
+
+  """Built-in Updater."""
+
+  strip = str.strip
+  lower = str.lower
+  print("[*] Checking for updates..."),
+  sock = socket(AF_INET, SOCK_STREAM) # TCP layer.
+  sock.settimeout(5)
+
+  try:
+  
+    sock.connect(("rtvrtm.gatetogames.net", 22999))
+    sock.settimeout(5)
+    send = sock.send
+    recv = sock.recv
+    send(hex(filecode))
+    new_version = recv(32)
+
+    if not new_version:
+
+      raise ValueError
+
+    elif new_version == VERSION:
+
+      print("Up to date!")
+
+    else:
+
+      print("Found!")
+
+      while(True): # Infinite loop until we get [Y]es or [N]o.
+      
+        update = lower(strip(raw_input("-> Update %s to %s? [Y]es/[N]o: " % (VERSION,
+                                                                             new_version))))
+
+        if update in ("y", "yes"):
+
+          break
+
+        elif update in ("n", "no"):
+
+          return
+
+      print("[*] Getting file information..."),
+      send("CFG") # Check whether a new configuration file is necessary.
+      update_cfg = recv(32)
+
+      if not update_cfg:
+
+        raise ValueError
+      
+      send("SIZE") # Get total size of the file we want to download. In bytes.
+      total_data = int(recv(128))
+
+      if total_data >= 1073741824: # Convert bytes to gigabytes.
+
+        update_size = ((total_data / 1073741824.0), "%.2f GB")
+          
+      elif total_data >= 1048576: # Convert bytes to megabytes.
+
+        update_size = ((total_data / 1048576.0), "%.2f MB")
+
+      elif total_data >= 1024: # Convert bytes to kilobytes.
+
+        update_size = ((total_data / 1024.0), "%.2f KB")
+
+      else:
+
+        update_size = (total_data, "%i B")
+      
+      newfile = []
+      append_data = newfile.append
+      data_size = download_offset = av_rates = av_total_rates = char_pos = 0
+      rotating_chars = ("|", "/", "-", "\\")
+      moving_dots = 1
+      send("GET")
+      update_time = download_time = time()
+      print("Done!")
+      print("-> Update size: %s%s" % (update_size[1] % (update_size[0]),
+                                      ("" if update_size[0] == 1 else
+                                       "s")))
+      print("\r[|] %s [%s] 0%%." % ((" " * 11), (" " * 36))), # Progress bar at 0%.
+
+      while data_size < total_data: # Download packets on a 512-bytes base.
+
+        data = recv(512)
+
+        if not data:
+
+          raise ValueError
+        
+        append_data(data)
+        data_size += len(data)
+        packet_time = time()
+        download_divisor = (packet_time - download_time)
+
+        if download_divisor >= 0.2:
+        
+          download_rate = ((data_size - download_offset) / download_divisor) # Calculate download rate in bytes/s.
+          av_rates += 1
+          av_total_rates += download_rate
+          download_offset = data_size
+          download_time = packet_time
+
+          if download_rate >= 1073741824: # Convert bytes/s to gigabytes/s.
+
+            download_rate = "%6.1f GB" % ((download_rate / 1073741824.0))
+          
+          elif download_rate >= 1048576: # Convert bytes/s to megabytes/s.
+
+            download_rate = "%6.1f MB" % ((download_rate / 1048576.0))
+
+          elif download_rate >= 1024: # Convert bytes/s to kilobytes/s.
+
+            download_rate = "%6.1f KB" % ((download_rate / 1024.0))
+
+          else:
+
+            download_rate = "%7i B" % (int(round(download_rate)))
+
+          char_pos = ((char_pos + 1) % 4)
+          percent = ((data_size * 100) / total_data)
+          bar = ((35 * percent) / 100)
+          bar = "%s%s" % (("=" * bar), (">" * bool(bar)))
+          moving_dots = ((moving_dots % 3) + 1)
+          print("\r[%c] %s/s [%-36s] %i%%%-3s" %
+                (rotating_chars[char_pos],
+                 download_rate, bar, percent, ("." * moving_dots))), # Progress bar.
+
+      try:
+
+        download_rate = (av_total_rates / av_rates) # Calculate average download rate in bytes/s.
+
+        if download_rate >= 1073741824: # Convert bytes/s to gigabytes/s.
+
+          download_rate = "%6.1f GB/s" % ((download_rate / 1073741824.0))
+
+        elif download_rate >= 1048576: # Convert bytes/s to megabytes/s.
+
+          download_rate = "%6.1f MB/s" % ((download_rate / 1048576.0))
+
+        elif download_rate >= 1024: # Convert bytes/s to kilobytes/s.
+
+          download_rate = "%6.1f KB/s" % ((download_rate / 1024.0))
+
+        else:
+
+          download_rate = "%7i B/s" % (int(round(download_rate)))
+
+      except ZeroDivisionError: # No rate was registered.
+
+        download_rate = (" " * 11)
+      
+      print("\r[*] %s [%s] 100%%   " % (download_rate, ("=" * 36))) # Progress bar at 100%.
+      print("[*] Flushing downloaded content to disk..."),
+
+      try:
+
+        with open(filename, ("at" if not filecode else "ab")) as rtvrtm:
+
+          write = rtvrtm.write
+          rtvrtm.truncate(0)
+
+          for data in iter(newfile):
+
+            write(data)
+
+      except IOError, err:
+
+        if err.errno == 13:
+
+          error("Cannot write new file. Permission denied.")
+
+        else:
+
+          error("Unexpected error while writting update to disk (ERRNO: %i)." % (err.errno))
+
+      print("Done!")
+
+      if update_cfg != CFG:
+
+        print("-> A new configuration file is available at http://rtvrtm.gatetogames.net/rtvrtm.cfg")
+      
+      print("-> Update completed in %s.\n" % (calculate_time(update_time, time())))
+      raw_input("Press ENTER to continue...")
+      exit(0)
+
+  except gaierror:
+
+    print("Unresolvable hostname!")
+
+  except ValueError:
+
+    print("Connection terminated!")
+
+  except socketTimeout:
+
+    print("Timeout!")
+
+  except socketError:
+
+    print("Refused/Unreachable!")
+
+  finally:
+
+    try:
+
+      sock.shutdown(SHUT_RDWR)
+
+    except socketError:
+
+      pass
+
+    sock.close()
 
 class Config(object):
 
@@ -224,7 +438,7 @@ class Config(object):
     lower = str.lower
 
     while(True): # Infinite loop until we get [Y]es or [N]o.
-
+        
       create = lower(strip(raw_input("-> Enter interactive map list creation? [Y]es/[N]o: ")))
 
       if create in ("y", "yes"):
@@ -293,7 +507,7 @@ class Config(object):
 
         for mapname in iter(bsps):
 
-          while(True):# Infinite loop until we get a valid choice.
+          while(True):# Infinite loop until we get a valid choice. 
 
             add_map = lower(strip(raw_input("-> %s? [P]rimary/[S]econdary/[I]gnore: " % (mapname))))
 
@@ -618,15 +832,15 @@ class Config(object):
 
         self.default_game = False
 
-      elif len(self.default_game) <= 2:
+      elif len(self.default_game) <= 3:
 
         try:
 
           self.default_game[0] = int(self.default_game[0])
 
-          if self.default_game[0] not in (0, 1, 2):
+          if self.default_game[0] not in (0, 1, 2, 3):
 
-            error("Invalid mode for default game (0, 1, 2).")
+            error("Invalid mode for default game (0, 1, 2, 3).")
 
           elif lower(self.default_game[1]) not in lower_bsps:
 
@@ -1178,7 +1392,7 @@ class Config(object):
             else:
 
               try:
-
+            
                 while self.maps[-1] in (" ", "\\", "/"):
 
                   self.maps = self.maps[:-1]
@@ -1196,9 +1410,9 @@ class Config(object):
               self.secondary_maps = join_path(dirname(self.config_path), "secondary_maps.txt")
 
             else:
-
+            
               try:
-
+            
                 while self.secondary_maps[-1] in (" ", "\\", "/"):
 
                   self.secondary_maps = self.secondary_maps[:-1]
@@ -1280,7 +1494,7 @@ class Config(object):
                                                  if (strip(line) and
                                                      lower(strip(line)) not in map_duplicates and
                                                      not map_duplicates[lower(strip(line))])))
-
+                    
                   if self.secondary_maps:
 
 # Check whether the map has a BSP file.
@@ -1504,7 +1718,14 @@ class Config(object):
                     4: (0, 1),
                     5: (0, 2),
                     6: (1, 2),
-                    7: (0, 1, 2)
+                    7: (0, 1, 2),
+					8: (3),
+					9: (0, 3),
+					10: (1, 3),
+					11: (2, 3),
+					12: (0,2,3),
+					13: (1,2,3),
+					14: (0,1,2,3),
                    }[int(self.rtm)]
 
         if self.rtm:
@@ -1515,13 +1736,13 @@ class Config(object):
 
             self.mode_priority = tuple((int(i) for i in iter(split(self.mode_priority))))
 
-            if len(self.mode_priority) == 4:
+            if len(self.mode_priority) == 5:
 
               if self.mode_priority[0] not in (0, 1, 2):
 
                 error("Invalid value for mode priority/open mode (0, 1, 2).")
 
-              elif self.mode_priority[1] not in (0, 1, 2):
+              elif self.mode_priority[1] not in (0, 1, 2, 3):
 
                 error("Invalid value for mode priority/semi authentic mode (0, 1, 2).")
 
@@ -1530,6 +1751,10 @@ class Config(object):
                 error("Invalid value for mode priority/full authentic mode (0, 1, 2).")
 
               elif self.mode_priority[3] not in (0, 1, 2):
+
+                error("Invalid value for mode priority/duel mode (0, 1, 2).")
+				
+              elif self.mode_priority[4] not in (0, 1, 2):
 
                 error("Invalid value for mode priority/extend mode (0, 1, 2).")
 
@@ -1735,7 +1960,7 @@ class Config(object):
 
       except KeyError:
 
-        error("Invalid value for RTM (0, 1, 2, 3, 4, 5, 6, 7).")
+        error("Invalid value for RTM (0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14).")
 
 # Connection test.
 
@@ -1786,7 +2011,7 @@ class Config(object):
               error("Could not contact the server after %i tr%s (REFUSED/UNREACHABLE)."
                     % (tries,
                        ("ies" if tries > 1 else "y")))
-
+                
             sleep(12)
 
           finally:
@@ -1831,7 +2056,7 @@ class Config(object):
             continue
 
           except socketError:
-
+                
             sleep(12)
 
           finally:
@@ -2112,9 +2337,9 @@ class Config(object):
 
           self._default_game[0] = int(self._default_game[0])
 
-          if self._default_game[0] not in (0, 1, 2):
+          if self._default_game[0] not in (0, 1, 2, 3):
 
-            warning("Invalid mode for default game (0, 1, 2).", rehash=True)
+            warning("Invalid mode for default game (0, 1, 2, 3).", rehash=True)
             return False
 
           elif lower(self._default_game[1]) not in lower_bsps:
@@ -2247,7 +2472,7 @@ class Config(object):
         self._admin_skip_voting = int(self._admin_skip_voting)
 
         if self._admin_skip_voting not in (0, 1, 2):
-
+          
           warning("Invalid value for admin skip voting (0, 1, 2).", rehash=True)
           return False
 
@@ -2443,7 +2668,7 @@ class Config(object):
           self._limit_skip_voting = int(self._limit_skip_voting)
 
           if self._limit_skip_voting not in (0, 1, 2):
-
+            
             warning("Invalid value for map limit skip voting (0, 1, 2).", rehash=True)
             return False
 
@@ -2662,7 +2887,7 @@ class Config(object):
             self._rtv_skip_voting = int(self._rtv_skip_voting)
 
             if self._rtv_skip_voting not in (0, 1, 2):
-
+              
               warning("Invalid value for RTV skip voting (0, 1, 2).", rehash=True)
               return False
 
@@ -2751,7 +2976,7 @@ class Config(object):
             else:
 
               try:
-
+            
                 while self._maps[-1] in (" ", "\\", "/"):
 
                   self._maps = self._maps[:-1]
@@ -2770,9 +2995,9 @@ class Config(object):
               self._secondary_maps = join_path(dirname(self.config_path), "secondary_maps.txt")
 
             else:
-
+            
               try:
-
+            
                 while self._secondary_maps[-1] in (" ", "\\", "/"):
 
                   self._secondary_maps = self._secondary_maps[:-1]
@@ -2858,7 +3083,7 @@ class Config(object):
                                               if (strip(line) and
                                                   lower(strip(line)) not in map_duplicates and
                                                   not map_duplicates[lower(strip(line))])))
-
+                
               if self._secondary_maps:
 
 # Check whether the map has a BSP file.
@@ -2904,7 +3129,7 @@ class Config(object):
 
                   warning("Pick secondary maps is not an integer.", rehash=True)
                   return False
-
+                      
               else:
 
                 self._pick_secondary_maps = None
@@ -3074,7 +3299,7 @@ class Config(object):
 
             self._mode_priority = tuple((int(i) for i in iter(split(self._mode_priority))))
 
-            if len(self._mode_priority) == 4:
+            if len(self._mode_priority) == 5:
 
               if self._mode_priority[0] not in (0, 1, 2):
 
@@ -3093,8 +3318,13 @@ class Config(object):
 
               elif self._mode_priority[3] not in (0, 1, 2):
 
-                warning("Invalid value for mode priority/extend mode (0, 1, 2).", rehash=True)
+                warning("Invalid value for mode priority/duel mode (0, 1, 2).", rehash=True)
                 return False
+				
+              elif self._mode_priority[4] not in (0, 1, 2):
+
+                warning("Invalid value for mode priority/extend mode (0, 1, 2).", rehash=True)
+                return False				
 
             else:
 
@@ -3264,7 +3494,7 @@ class Config(object):
             self._rtm_skip_voting = int(self._rtm_skip_voting)
 
             if self._rtm_skip_voting not in (0, 1, 2):
-
+              
               warning("Invalid value for RTM skip voting (0, 1, 2).", rehash=True)
               return False
 
@@ -3343,7 +3573,7 @@ class Config(object):
         sock = socket(AF_INET, SOCK_DGRAM)
 
         try:
-
+          
           bind(sock, (self._bindaddr, 0))
 
         except socketError:
@@ -3384,7 +3614,7 @@ class Config(object):
 
             warning("Could not contact the server after 5 tries (REFUSED/UNREACHABLE).", rehash=True)
             return False
-
+              
           sleep(12)
 
         finally:
@@ -3484,7 +3714,7 @@ class Rcon(object):
     while(True): # Make sure an infinite loop is placed until
                  # the command is successfully received.
       try:
-
+      
         send(payload)
         recv(buffer_size)
         break
@@ -3501,7 +3731,7 @@ class Rcon(object):
     sock.close()
 
   def say(self, msg):
-
+      
     self._send("\xff\xff\xff\xffrcon %s say %s" % (self.rcon_pwd, msg),
                2048)
 
@@ -3571,19 +3801,19 @@ class Features(object):
   def _enable_rtv(self):
 
     self.rtv = True
-    self.svsay("^1[Status] ^5RTV is now enabled.")
+    self.svsay("^2[Status] ^7RTV is now enabled.")
     print("CONSOLE: (%s) [Status] RTV is now enabled." % (datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
 
   def _enable_rtm(self):
 
     self.rtm = True
-    self.svsay("^1[Status] ^5RTM is now enabled.")
+    self.svsay("^2[Status] ^7RTM is now enabled.")
     print("CONSOLE: (%s) [Status] RTM is now enabled." % (datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
 
   def _enable_all(self):
 
     self.rtv = self.rtm = True
-    self.svsay("^1[Status] ^5RTV and RTM are now enabled.")
+    self.svsay("^2[Status] ^7RTV and RTM are now enabled.")
     print("CONSOLE: (%s) [Status] RTV and RTM are now enabled." % (datetime.now().strftime("%d/%m/%Y %H:%M:%S")))
 
 def fix_line(line):
@@ -3593,7 +3823,7 @@ def fix_line(line):
   startswith = str.startswith
   split = str.split
 
-  while startswith(line[7:], "Client "):
+  while startswith(line[8:], "Client "):
 
     line = split(line, ":", 3)
 
@@ -3640,11 +3870,11 @@ def switch_default(default_game, current_mode, current_map, mbmode):
   elif isinstance(default_game[0], int):
 
     if current_mode != default_game[0]:
-
+   
       mbmode(default_game[0])
       return True
 
-  elif current_map != default_game[0].lower():
+  elif current_map != default_game[0].lower(): 
 
     mbmode("%i %s" % (current_mode, default_game[0]))
     return True
@@ -3677,10 +3907,10 @@ def send_voting_message(voting_name, countdown, countdown_type, total_votes, tot
 
   """Send voting related messages (countdown and voting options)."""
 
-  svsay("^1[%s] ^5Type !number to vote. Voting will complete in ^1%i ^5%s%s (%i/%i)."
+  svsay("^2[%s] ^7Type !number to vote. Voting will complete in ^2%i ^7%s%s (%i/%i)."
         % (voting_name, countdown, countdown_type, ("" if countdown == 1 else "s"),
            total_votes, total_players))
-  svsay("^1[Votes] ^5%s" % (", ".join(("%i(%i): %s" % (vote_id, vote_count, vote_display_value)
+  svsay("^2[Votes] ^7%s" % (", ".join(("%i(%i): %s" % (vote_id, vote_count, vote_display_value)
                                        for (vote_id, (vote_count, priority, vote_value, vote_display_value))
                                        in votes_items()))))
 
@@ -3731,9 +3961,16 @@ def main(argv):
   parser.add_option("-t", type="int", dest="tries",
                     help="Set the amount of server connection tries before giving up (0 = infinite). Default: 5",
                     metavar="<0-100>", default=5)
+  parser_updater = OptionGroup(parser, "Built-in Updater Options")
+  parser_updater.add_option("--noupdate", action="store_true", dest="noupdate",
+                            help="Skip the update check.", default=False)
+  parser_updater.add_option("--quit", action="store_true", dest="quit",
+                            help="Quit after checking for updates. This option will have no effect if --noupdate is set.",
+                            default=False)
   parser_bugreport = OptionGroup(parser, "Bug Report Options")
   parser_bugreport.add_option("--noreport", action="store_false", dest="report",
-                              help="Do not send bug reports.", default=True)
+                              help="Do not send bug reports.", default=True)  
+  parser.add_option_group(parser_updater)
   parser.add_option_group(parser_bugreport)
   opts, args = parser.parse_args()
   REPORT_UNHANDLED_EXCEPTION = opts.report
@@ -3760,10 +3997,18 @@ def main(argv):
 
     parser.error("The amount of server connection tries must range from 0 to 100.")
 
+  if not opts.noupdate: # Skip update check?
+
+    updater(normpath(argv[0]), filecode)
+
+    if opts.quit:
+
+      exit(0)
+
   config = Config(config_path)
   config.create(opts.tries)
   parser.destroy()
-  del (filecode, parser, parser_bugreport, opts, args, config_path)
+  del (filecode, parser, parser_updater, parser_bugreport, opts, args, config_path)
   print("[*] Creating data structures and setting parameters..."),
   players = {}
   nomination_order = []
@@ -3806,7 +4051,7 @@ def main(argv):
 # to get the current status.
 
     for line in log:
-
+      
       if endswith(line, "\n"): # Check for valid line.
 
         line = fix_line(line)
@@ -3878,7 +4123,7 @@ def main(argv):
     print("Done!")
 
     try:
-
+    
       print("[Server Status] Map: %s | Mode: %s | Players: %i/%i\n"
             % (current_map, gamemodes[current_mode], len(players), int(cvars["sv_maxclients"])))
 
@@ -3886,7 +4131,7 @@ def main(argv):
 
       print("[Server Status] Map: %s | Mode: %s | Players: %i\n"
             % (current_map, gamemodes[current_mode], len(players)))
-
+    
     current_map = lower(current_map)
     current_time = time()
     gameinfo = { # Time of detection, extensions.
@@ -3903,7 +4148,7 @@ def main(argv):
                                                                  for rate in (config.rtv_rate, config.rtm_rate))]
 
     if not players and config.default_game:
-
+    
       reset = switch_default(config.default_game, current_mode, current_map, mbmode)
 
     while(True): # Infinite loop and parsing from here.
@@ -3931,7 +4176,7 @@ def main(argv):
             reset = True
 
             if config.rtv:
-
+            
               status.times[0] = 0
 
             if config.rtm:
@@ -4047,13 +4292,13 @@ def main(argv):
                 gameinfo["mode"][1] = gameinfo["map"][1] = 0
 
                 if not reset:
-
+                 
                   status.rtv = status.rtm = False
 
                 else:
 
                   reset = False
-
+                    
                 voting_instructions = start_voting = start_second_turn = recover = False
                 current_time = time()
 
@@ -4063,7 +4308,7 @@ def main(argv):
                   current_mode = cvars["g_authenticity"]
 
                 if current_map != cvars["mapname"]:
-
+                
                   recently_played[current_map] = (current_time + config.enable_recently_played)
                   gameinfo["map"][0] = current_time
                   current_map = cvars["mapname"]
@@ -4078,11 +4323,11 @@ def main(argv):
 
                       start_second_turn = skip_voting = False
                       voting_countdown = _voting_countdown
-                      svsay("^1[%s] ^5Second turn voting for the next %s has begun. Type !number to vote. Voting will complete in ^1%i ^5round%s."
+                      svsay("^2[%s] ^7Second turn voting for the next %s has begun. Type !number to vote. Voting will complete in ^2%i ^7round%s."
                             % (voting_name, voting_type, voting_countdown,
                                ("" if voting_countdown == 1 else "s")))
                       voting_countdown -= 1
-                      svsay("^1[Votes] ^51: %s, 2: %s" % (votes[1][3], votes[2][3]))
+                      svsay("^2[Votes] ^71: %s, 2: %s" % (votes[1][3], votes[2][3]))
                       voting_time = object()
 
                     elif not voting_instructions:
@@ -4091,7 +4336,7 @@ def main(argv):
 
                         if voting_type == "admin":
 
-                          svsay("^1[Description] ^5%s" % (voting_description))
+                          svsay("^2[Description] ^7%s" % (voting_description))
 
                         send_voting_message(voting_name, voting_countdown, "round",
                                             sum((vote_count for (vote_count, priority, vote_value, vote_display_value) in votes_values())),
@@ -4107,11 +4352,11 @@ def main(argv):
                   mbmode(("%i %s" % (current_mode, change_instructions[0]) if voting_type == "map" else
                           change_instructions[0]))
                   wait_time = (time() + change_instructions[2])
-
+                  
                   if wait_time > status.times[change_instructions[1]]:
 
                     status.times[change_instructions[1]] = wait_time
-
+                    
                   change_instructions = recover = True
 
             elif startswith(line, "ClientUserinfoChanged: "):
@@ -4144,20 +4389,23 @@ def main(argv):
                       % (player_id, player_name))
                   clientkick(player_id)
 
-            elif startswith(line, "say: Admin: "): # Admin commands (/smod say).
+            elif startswith(line, "say: Admin: ") or startswith(line, "say: Server: "): # Admin commands (/smod say).
 
               if not recover:
 
-                original_admin_cmd = strip(remove_color(line[12:]))
+		if startswith(line, "say: Admin: "):
+                	original_admin_cmd = strip(remove_color(line[12:]))
+		elif startswith(line, "say: Server: "):
+			original_admin_cmd = strip(remove_color(line[13:]))
                 admin_cmd = lower(original_admin_cmd)
 
                 if admin_cmd == "!rehash": # Rehash configuration.
 
-                  svsay("^1[Status] ^5Rehashing configuration...")
+                  svsay("^2[Status] ^7Rehashing configuration...")
                   print("CONSOLE: (%s) [Status] Rehashing configuration..." %
                         (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                   sleep(1)
-
+                  
                   if config.rehash():
 
                     rcon.address = config.address
@@ -4171,13 +4419,13 @@ def main(argv):
                     else:
 
                       svsay = status.svsay = say
-
-                    svsay("^1[Status] ^5Rehash successful!")
+                    
+                    svsay("^2[Status] ^7Rehash successful!")
 
                   else:
 
-                    svsay("^1[Status] ^5Rehash failed!")
-
+                    svsay("^2[Status] ^7Rehash failed!")
+                  
                   print("[*] Resetting parameters..."),
                   players = dict((player_id, [0, False, False, None, None])
                                  for player_id in iter(players)) # Reset players data.
@@ -4202,17 +4450,17 @@ def main(argv):
                   if admin_cmd == "!erase": # Erase the Admin voting options pool.
 
                     admin_choices[:] = []
-                    svsay("^1[Admin] ^5Admin voting options were erased.")
+                    svsay("^2[Admin] ^7Admin voting options were erased.")
 
                   elif startswith(admin_cmd, "!description "): # Set the admin's voting description.
 
                     if voting_description:
 
-                      svsay("^1[Admin] ^5Admin voting description changed!")
+                      svsay("^2[Admin] ^7Admin voting description changed!")
 
                     else:
-
-                      svsay("^1[Admin] ^5Admin voting description added!")
+                      
+                      svsay("^2[Admin] ^7Admin voting description added!")
 
                     voting_description = lstrip(original_admin_cmd[13:])
 
@@ -4224,16 +4472,16 @@ def main(argv):
 
                       if lower(voting_choice) in (lower(voting_option) for voting_option in iter(admin_choices)):
 
-                        say("^1[Admin] ^5%s is already present within the admin voting options." % (voting_choice))
+                        say("^2[Admin] ^7%s is already present within the admin voting options." % (voting_choice))
 
                       else:
 
                         admin_choice(voting_choice)
-                        svsay("^1[Admin] ^5%s was added as an admin voting option." % (voting_choice))
+                        svsay("^2[Admin] ^7%s was added as an admin voting option." % (voting_choice))
 
                     else:
 
-                      say("^1[Admin] ^5Admin voting is full.")
+                      say("^2[Admin] ^7Admin voting is full.")
 
                   else:
 
@@ -4285,19 +4533,19 @@ def main(argv):
 
                           if not voting_description:
 
-                            svsay("^1[Admin] ^5Admin voting failed to start! No voting description is set.")
+                            svsay("^2[Admin] ^7Admin voting failed to start! No voting description is set.")
                             print("CONSOLE: (%s) [Admin] Admin voting failed to start! No voting description is set."
                                   % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
 
                           elif not admin_choices:
 
-                            svsay("^1[Admin] ^5Admin voting failed to start! No voting options were added.")
+                            svsay("^2[Admin] ^7Admin voting failed to start! No voting options were added.")
                             print("CONSOLE: (%s) [Admin] Admin voting failed to start! No voting options were added."
                                   % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
 
                           elif len(admin_choices) < 2:
 
-                            svsay("^1[Admin] ^5Admin voting failed to start! Two or more voting options are required.")
+                            svsay("^2[Admin] ^7Admin voting failed to start! Two or more voting options are required.")
                             print("CONSOLE: (%s) [Admin] Admin voting failed to start! Two or more voting options are required."
                                   % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
 
@@ -4321,7 +4569,7 @@ def main(argv):
 
                         if config.rtv:
 
-                          svsay("^1[RTV] ^5Rock the vote was forcefully disabled!")
+                          svsay("^2[RTV] ^7Rock the vote was forcefully disabled!")
                           print("CONSOLE: (%s) [RTV] Rock the vote was forcefully disabled!" %
                                 (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                           disable_time = int(admin_cmd[2])
@@ -4335,7 +4583,7 @@ def main(argv):
 
                       elif admin_cmd[1] == "rtm" and config.rtm:
 
-                        svsay("^1[RTM] ^5Rock the mode was forcefully disabled!")
+                        svsay("^2[RTM] ^7Rock the mode was forcefully disabled!")
                         print("CONSOLE: (%s) [RTM] Rock the mode was forcefully disabled!" %
                               (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                         disable_time = int(admin_cmd[2])
@@ -4353,7 +4601,7 @@ def main(argv):
 
                     if not voting_instructions and not start_second_turn:
 
-                      svsay("^1[Voting] ^5The %s voting was canceled!" % (voting_type))
+                      svsay("^2[Voting] ^7The %s voting was canceled!" % (voting_type))
                       print("CONSOLE: (%s) [Voting] The %s voting was canceled!" %
                             (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_type))
                       players = dict((player_id, [timer, False, False, None, None])
@@ -4370,7 +4618,7 @@ def main(argv):
 
                   elif change_instructions is not True: # Cancel next map/mode change.
 
-                    svsay("^1[Nextgame] ^5The next %s (%s) was canceled!" %
+                    svsay("^2[Nextgame] ^7The next %s (%s) was canceled!" %
                           (voting_type,
                            (change_instructions[0] if voting_type == "map" else
                             gamemodes[change_instructions[0]])))
@@ -4378,7 +4626,7 @@ def main(argv):
                           (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_type,
                            (change_instructions[0] if voting_type == "map" else
                             gamemodes[change_instructions[0]])))
-
+                           
                     change_instructions = None
                     status.rtv = status.rtm = start_voting = False
                     recover = True
@@ -4390,7 +4638,7 @@ def main(argv):
                   wait_time = (time() + change_instructions[2])
 
                   if wait_time > status.times[change_instructions[1]]:
-
+                            
                     status.times[change_instructions[1]] = wait_time
 
                   change_instructions = recover = True
@@ -4436,7 +4684,7 @@ def main(argv):
                           if not decrease_maps:
 
                             break
-
+                          
                           filtered_nominations = [nomination for (priority, nomination) in iter(compare_nominations)
                                                   if priority == i] # Map priority.
 
@@ -4451,7 +4699,7 @@ def main(argv):
                                            if nomination not in filtered_nominations]
 
                     voting_maps = [(priority, nomination) for (nomination_count, priority, nomination) in iter(voting_maps)]
-
+                    
                   else:
 
                     voting_maps = [((config.map_priority[0] if players[player_id][3] in config.maps else config.map_priority[1]),
@@ -4481,10 +4729,10 @@ def main(argv):
                                       if (mapname not in nominated_maps and
                                           lower(mapname) != current_map and
                                           recently_played[lower(mapname)] <= current_time)]
-
+                    
                     if missing_maps == 5 and not available_maps and not available_secondary_maps:
 
-                      svsay("^1[Roundlimit] ^5Roundlimit voting failed to start! No map is currently available.")
+                      svsay("^2[Roundlimit] ^7Roundlimit voting failed to start! No map is currently available.")
                       print("CONSOLE: (%s) [Roundlimit] Roundlimit voting failed to start! No map is currently available."
                             % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                       players = dict((player_id, [timer, False, rtm_vote, None, None])
@@ -4515,7 +4763,7 @@ def main(argv):
                         remove_map = available_secondary_maps.remove
 
                         try:
-
+                        
                           for i in xrange((5 - len(voting_maps))):
 
 # Fill any remaining map slots with random secondary maps.
@@ -4535,9 +4783,9 @@ def main(argv):
 
                   if (config.limit_extend[0] == 2 or
                       (config.limit_extend[0] == 1 and gameinfo["map"][1] < config.limit_extend[1])):
-
+          
                     votes[(len(votes) + 1)] = [0, config.map_priority[2], None, "Don't change"] # Add the "Don't change" option.
-
+                  
                   votes_values = votes.itervalues
                   votes_items = votes.sorteditems
                   voting_name = "Roundlimit"
@@ -4591,7 +4839,7 @@ def main(argv):
                           if not decrease_maps:
 
                             break
-
+                          
                           filtered_nominations = [nomination for (priority, nomination) in iter(compare_nominations)
                                                   if priority == i] # Map priority.
 
@@ -4606,7 +4854,7 @@ def main(argv):
                                            if nomination not in filtered_nominations]
 
                     voting_maps = [(priority, nomination) for (nomination_count, priority, nomination) in iter(voting_maps)]
-
+                    
                   else:
 
                     voting_maps = [((config.map_priority[0] if players[player_id][3] in config.maps else config.map_priority[1]),
@@ -4636,10 +4884,10 @@ def main(argv):
                                       if (mapname not in nominated_maps and
                                           lower(mapname) != current_map and
                                           recently_played[lower(mapname)] <= current_time)]
-
+                    
                     if missing_maps == 5 and not available_maps and not available_secondary_maps:
 
-                      svsay("^1[Timelimit] ^5Timelimit voting failed to start! No map is currently available.")
+                      svsay("^2[Timelimit] ^7Timelimit voting failed to start! No map is currently available.")
                       print("CONSOLE: (%s) [Timelimit] Timelimit voting failed to start! No map is currently available."
                             % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                       players = dict((player_id, [timer, False, rtm_vote, None, None])
@@ -4670,7 +4918,7 @@ def main(argv):
                         remove_map = available_secondary_maps.remove
 
                         try:
-
+                        
                           for i in xrange((5 - len(voting_maps))):
 
 # Fill any remaining map slots with random secondary maps.
@@ -4690,9 +4938,9 @@ def main(argv):
 
                   if (config.limit_extend[0] == 2 or
                       (config.limit_extend[0] == 1 and gameinfo["map"][1] < config.limit_extend[1])):
-
+          
                     votes[(len(votes) + 1)] = [0, config.map_priority[2], None, "Don't change"] # Add the "Don't change" option.
-
+                  
                   votes_values = votes.itervalues
                   votes_items = votes.sorteditems
                   voting_name = "Timelimit"
@@ -4726,19 +4974,19 @@ def main(argv):
 
                       if not config.rtv:
 
-                        say("^1[RTV] ^5Rock the vote is unavailable.")
+                        say("^2[RTV] ^7Rock the vote is unavailable.")
 
                       elif not status.rtv:
 
                         if isinstance(status.times[0], float):
 
-                          say("^1[RTV] ^5Rock the vote is currently disabled. Time remaining: %s"
+                          say("^2[RTV] ^7Rock the vote is currently disabled. Time remaining: %s"
                               % (calculate_time(current_time, status.times[0])))
 
                         else:
 
-                          say("^1[RTV] ^5Rock the vote is temporarily disabled.")
-
+                          say("^2[RTV] ^7Rock the vote is temporarily disabled.")
+                        
                       else:
 
                         available_maps = config.maps
@@ -4755,25 +5003,25 @@ def main(argv):
 
                         if not available_maps:
 
-                          say("^1[RTV] ^5Rock the vote is disabled because no map is currently available.")
+                          say("^2[RTV] ^7Rock the vote is disabled because no map is currently available.")
                           players = dict((player_id, [timer, False, rtm_vote, None, None])
                                          for (player_id, (timer, rtv_vote, rtm_vote, nomination, vote_option))
                                          in players_items()) # Reset RTV votes.
                           players_values = players.itervalues
                           players_items = players.iteritems
-
+                          
                         elif players[player_id][1]:
-
-                          say("^1[RTV] ^7%s ^5already wanted to rock the vote (%i/%i)."
+                          
+                          say("^2[RTV] ^7%s ^7already wanted to rock the vote (%i/%i)."
                               % (player_name,
                                  sum((rtv_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                       in players_values())),
                                  rtv_players))
-
+                          
                         else:
 
                           players[player_id][1] = check_votes = True
-                          svsay("^1[RTV] ^7%s ^5wants to rock the vote (%i/%i)."
+                          svsay("^2[RTV] ^7%s ^7wants to rock the vote (%i/%i)."
                                 % (player_name,
                                    sum((rtv_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                         in players_values())),
@@ -4785,19 +5033,19 @@ def main(argv):
 
                       if not config.rtv:
 
-                        say("^1[RTV] ^5Rock the vote is unavailable.")
+                        say("^2[RTV] ^7Rock the vote is unavailable.")
 
                       elif not status.rtv:
 
                         if isinstance(status.times[0], float):
 
-                          say("^1[RTV] ^5Rock the vote is currently disabled. Time remaining: %s"
+                          say("^2[RTV] ^7Rock the vote is currently disabled. Time remaining: %s"
                               % (calculate_time(current_time, status.times[0])))
 
                         else:
 
-                          say("^1[RTV] ^5Rock the vote is temporarily disabled.")
-
+                          say("^2[RTV] ^7Rock the vote is temporarily disabled.")
+                        
                       else:
 
                         available_maps = config.maps
@@ -4814,25 +5062,25 @@ def main(argv):
 
                         if not available_maps:
 
-                          say("^1[RTV] ^5Rock the vote is disabled because no map is currently available.")
+                          say("^2[RTV] ^7Rock the vote is disabled because no map is currently available.")
                           players = dict((player_id, [timer, False, rtm_vote, None, None])
                                          for (player_id, (timer, rtv_vote, rtm_vote, nomination, vote_option))
                                          in players_items()) # Reset RTV votes.
                           players_values = players.itervalues
                           players_items = players.iteritems
-
+                          
                         elif not players[player_id][1]:
-
-                          say("^1[RTV] ^7%s ^5didn't want to rock the vote yet (%i/%i)."
+                          
+                          say("^2[RTV] ^7%s ^7didn't want to rock the vote yet (%i/%i)."
                               % (player_name,
                                  sum((rtv_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                       in players_values())),
                                  rtv_players))
-
+                          
                         else:
 
                           players[player_id][1] = False
-                          svsay("^1[RTV] ^7%s ^5no longer wants to rock the vote (%i/%i)."
+                          svsay("^2[RTV] ^7%s ^7no longer wants to rock the vote (%i/%i)."
                                 % (player_name,
                                    sum((rtv_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                         in players_values())),
@@ -4844,40 +5092,40 @@ def main(argv):
 
                       if not config.rtm:
 
-                        say("^1[RTM] ^5Rock the mode is unavailable.")
+                        say("^2[RTM] ^7Rock the mode is unavailable.")
 
                       elif not status.rtm:
 
                         if isinstance(status.times[1], float):
 
-                          say("^1[RTM] ^5Rock the mode is currently disabled. Time remaining: %s"
+                          say("^2[RTM] ^7Rock the mode is currently disabled. Time remaining: %s"
                               % (calculate_time(current_time, status.times[1])))
 
                         else:
 
-                          say("^1[RTM] ^5Rock the mode is temporarily disabled.")
+                          say("^2[RTM] ^7Rock the mode is temporarily disabled.")
 
                       elif not [gamemode for gamemode in iter(config.rtm) if gamemode != current_mode]:
 
-                        say("^1[RTV] ^5Rock the mode is disabled because no mode is currently available.")
+                        say("^2[RTV] ^7Rock the mode is disabled because no mode is currently available.")
                         players = dict((player_id, [timer, rtv_vote, False, nomination, None])
                                        for (player_id, (timer, rtv_vote, rtm_vote, nomination, vote_option))
                                        in players_items()) # Reset RTM votes.
                         players_values = players.itervalues
                         players_items = players.iteritems
-
+                        
                       elif players[player_id][2]:
-
-                        say("^1[RTM] ^7%s ^5already wanted to rock the mode (%i/%i)."
+                          
+                        say("^2[RTM] ^7%s ^7already wanted to rock the mode (%i/%i)."
                             % (player_name,
                                sum((rtm_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                     in players_values())),
                                rtm_players))
-
+                          
                       else:
 
                         players[player_id][2] = check_votes = True
-                        svsay("^1[RTM] ^7%s ^5wants to rock the mode (%i/%i)."
+                        svsay("^2[RTM] ^7%s ^7wants to rock the mode (%i/%i)."
                               % (player_name,
                                  sum((rtm_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                       in players_values())),
@@ -4889,22 +5137,22 @@ def main(argv):
 
                       if not config.rtm:
 
-                        say("^1[RTM] ^5Rock the mode is unavailable.")
+                        say("^2[RTM] ^7Rock the mode is unavailable.")                    
 
                       elif not status.rtm:
 
                         if isinstance(status.times[1], float):
 
-                          say("^1[RTM] ^5Rock the mode is currently disabled. Time remaining: %s"
+                          say("^2[RTM] ^7Rock the mode is currently disabled. Time remaining: %s"
                               % (calculate_time(current_time, status.times[1])))
 
                         else:
 
-                          say("^1[RTM] ^5Rock the mode is temporarily disabled.")
+                          say("^2[RTM] ^7Rock the mode is temporarily disabled.")
 
                       elif not [gamemode for gamemode in iter(config.rtm) if gamemode != current_mode]:
 
-                        say("^1[RTV] ^5Rock the mode is disabled because no mode is currently available.")
+                        say("^2[RTV] ^7Rock the mode is disabled because no mode is currently available.")
                         players = dict((player_id, [timer, rtv_vote, False, nomination, None])
                                        for (player_id, (timer, rtv_vote, rtm_vote, nomination, vote_option))
                                        in players_items()) # Reset RTM votes.
@@ -4912,17 +5160,17 @@ def main(argv):
                         players_items = players.iteritems
 
                       elif not players[player_id][2]:
-
-                        say("^1[RTM] ^7%s ^5didn't want to rock the mode yet (%i/%i)."
+                          
+                        say("^2[RTM] ^7%s ^7didn't want to rock the mode yet (%i/%i)."
                             % (player_name,
                                sum((rtm_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                     in players_values())),
                                rtm_players))
-
+                          
                       else:
 
                         players[player_id][2] = False
-                        svsay("^1[RTM] ^7%s ^5no longer wants to rock the mode (%i/%i)."
+                        svsay("^2[RTM] ^7%s ^7no longer wants to rock the mode (%i/%i)."
                               % (player_name,
                                  sum((rtm_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                       in players_values())),
@@ -4934,15 +5182,15 @@ def main(argv):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
-
+                        say("^2[Voting] ^7Map voting is unavailable.")
+                            
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       else:
 
-                        say("^1[Nominate] ^5Usage: %s mapname" % (original_msg))
+                        say("^2[Nominate] ^7Usage: %s mapname" % (original_msg))
 
                       players[player_id][0] = (current_time + config.flood_protection)
 
@@ -4950,11 +5198,11 @@ def main(argv):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
+                        say("^2[Voting] ^7Map voting is unavailable.")
 
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       else:
 
@@ -4969,16 +5217,16 @@ def main(argv):
 
                           if not compare_map:
 
-                            say("^1[Nominate] ^5Invalid map. Please use <!>maplist or <!>search expression.")
+                            say("^2[Nominate] ^7Invalid map. Please use <!>maplist or <!>search expression.")
 
                           elif nominated_map == current_map:
 
-                            say("^1[Nominate] ^5%s cannot be nominated (current map)."
+                            say("^2[Nominate] ^7%s cannot be nominated (current map)."
                                 % (compare_map[0]))
 
                           elif recently_played[nominated_map] > current_time:
 
-                            say("^1[Nominate] ^5%s cannot be nominated (recently played) (%s left)."
+                            say("^2[Nominate] ^7%s cannot be nominated (recently played) (%s left)."
                                 % (compare_map[0], calculate_time(current_time, recently_played[nominated_map])))
 
                           else:
@@ -4987,7 +5235,7 @@ def main(argv):
 
                             if players[player_id][3] == compare_map[0]:
 
-                              say("^1[Nominate] ^7%s ^5already nominated %s (%i nomination%s)."
+                              say("^2[Nominate] ^7%s ^7already nominated %s (%i nomination%s)."
                                   % (player_name, compare_map[0], nominations,
                                      ("" if nominations == 1 else "s")))
 
@@ -4998,13 +5246,13 @@ def main(argv):
                               if players[player_id][3]:
 
                                 remove_nomination(player_id)
-                                svsay("^1[Nominate] ^7%s ^5nomination changed to %s (%i nomination%s)."
+                                svsay("^2[Nominate] ^7%s ^7nomination changed to %s (%i nomination%s)."
                                       % (player_name, compare_map[0], nominations,
                                          ("" if nominations == 1 else "s")))
 
                               else:
 
-                                svsay("^1[Nominate] ^7%s ^5nominated %s (%i nomination%s)!"
+                                svsay("^2[Nominate] ^7%s ^7nominated %s (%i nomination%s)!"
                                       % (player_name, compare_map[0], nominations,
                                          ("" if nominations == 1 else "s")))
 
@@ -5015,21 +5263,21 @@ def main(argv):
 
                           if not compare_map:
 
-                            say("^1[Nominate] ^5Invalid map. Please use <!>maplist or <!>search expression.")
+                            say("^2[Nominate] ^7Invalid map. Please use <!>maplist or <!>search expression.")
 
                           elif nominated_map == current_map:
 
-                            say("^1[Nominate] ^5%s cannot be nominated (current map)."
+                            say("^2[Nominate] ^7%s cannot be nominated (current map)."
                                 % (compare_map[0]))
 
                           elif recently_played[nominated_map] > current_time:
 
-                            say("^1[Nominate] ^5%s cannot be nominated (recently played) (%s left)."
+                            say("^2[Nominate] ^7%s cannot be nominated (recently played) (%s left)."
                                 % (compare_map[0], calculate_time(current_time, recently_played[nominated_map])))
 
                           elif compare_map[0] in nominated_maps:
 
-                            say("^1[Nominate] ^5%s cannot be nominated (already nominated)."
+                            say("^2[Nominate] ^7%s cannot be nominated (already nominated)."
                                 % (compare_map[0]))
 
                           else:
@@ -5037,12 +5285,12 @@ def main(argv):
                             if players[player_id][3]:
 
                               remove_nomination(player_id)
-                              svsay("^1[Nominate] ^7%s ^5nomination changed to %s."
+                              svsay("^2[Nominate] ^7%s ^7nomination changed to %s."
                                     % (player_name, compare_map[0]))
 
                             else:
 
-                              svsay("^1[Nominate] ^7%s ^5nominated %s!"
+                              svsay("^2[Nominate] ^7%s ^7nominated %s!"
                                     % (player_name, compare_map[0]))
 
                             players[player_id][3] = compare_map[0]
@@ -5050,23 +5298,23 @@ def main(argv):
 
                         else:
 
-                          say("^1[Nominate] ^5Maximum number of nominations (5) reached.")
-
+                          say("^2[Nominate] ^7Maximum number of nominations (5) reached.")
+                                          
                       players[player_id][0] = (current_time + config.flood_protection)
 
                     elif msg in ("revoke", "!revoke"):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
+                        say("^2[Voting] ^7Map voting is unavailable.")
 
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       elif not players[player_id][3]:
 
-                        say("^1[Revoke] ^7%s ^5has no nominated map." %
+                        say("^2[Revoke] ^7%s ^7has no nominated map." %
                             (player_name))
 
                       else:
@@ -5076,13 +5324,13 @@ def main(argv):
                           nominations = (count([nomination
                                                 for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                                 in players_values()], players[player_id][3]) - 1)
-                          svsay("^1[Revoke] ^7%s ^5nomination to %s was revoked (%i nomination%s)." %
+                          svsay("^2[Revoke] ^7%s ^7nomination to %s was revoked (%i nomination%s)." %
                                 (player_name, players[player_id][3], nominations,
                                  ("" if nominations == 1 else "s")))
 
                         else:
 
-                          svsay("^1[Revoke] ^7%s ^5nomination revoked!" %
+                          svsay("^2[Revoke] ^7%s ^7nomination revoked!" %
                                 (player_name))
 
                         players[player_id][3] = None
@@ -5094,11 +5342,11 @@ def main(argv):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
+                        say("^2[Voting] ^7Map voting is unavailable.")
 
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       else:
 
@@ -5108,7 +5356,7 @@ def main(argv):
                                                   key=lower)) # Create an alphanumeric sorted map list.
 
                         if not config.nomination_type: # Remove nominated maps.
-
+                          
                           nominated_maps = [nomination
                                             for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                             in players_values() if nomination]
@@ -5138,16 +5386,16 @@ def main(argv):
 
                         if not maplist[1]:
 
-                          say("^1[Maplist] ^5No map is currently available for nomination.")
+                          say("^2[Maplist] ^7No map is currently available for nomination.")
 
                         elif len(maplist) > 1:
 
-                          say("^1[Maplist] ^5Usage: %s number (Available map lists: %i)" %
+                          say("^2[Maplist] ^7Usage: %s number (Available map lists: %i)" %
                               (original_msg, len(maplist)))
 
                         else:
-
-                          say("^1[Maplist] ^5%s" % (join(", ", maplist[1])))
+                          
+                          say("^2[Maplist] ^7%s" % (join(", ", maplist[1])))
 
                       players[player_id][0] = (current_time + config.flood_protection)
 
@@ -5155,11 +5403,11 @@ def main(argv):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
+                        say("^2[Voting] ^7Map voting is unavailable.")
 
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       else:
 
@@ -5169,7 +5417,7 @@ def main(argv):
                                                   key=lower)) # Create an alphanumeric sorted map list.
 
                         if not config.nomination_type: # Remove nominated maps.
-
+                          
                           nominated_maps = [nomination
                                             for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                                             in players_values() if nomination]
@@ -5199,18 +5447,18 @@ def main(argv):
 
                         if not maplist[1]:
 
-                          say("^1[Maplist] ^5No map is currently available for nomination.")
+                          say("^2[Maplist] ^7No map is currently available for nomination.")
 
                         else:
 
                           try:
-
+                            
                             maplist_number = int(msg[8:])
-                            say("^1[Maplist %i] ^5%s" % (maplist_number, join(", ", maplist[maplist_number])))
+                            say("^2[Maplist %i] ^7%s" % (maplist_number, join(", ", maplist[maplist_number])))
 
                           except (ValueError, KeyError):
 
-                            say("^1[Maplist] ^5Invalid map list number (Available map lists: %i)."
+                            say("^2[Maplist] ^7Invalid map list number (Available map lists: %i)."
                                 % (len(maplist)))
 
                       players[player_id][0] = (current_time + config.flood_protection)
@@ -5219,15 +5467,15 @@ def main(argv):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
+                        say("^2[Voting] ^7Map voting is unavailable.")
 
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       else:
 
-                        say("^1[Search] ^5Usage: %s expression" % (original_msg))
+                        say("^2[Search] ^7Usage: %s expression" % (original_msg))
 
                       players[player_id][0] = (current_time + config.flood_protection)
 
@@ -5235,11 +5483,11 @@ def main(argv):
 
                       if not config.maps:
 
-                        say("^1[Voting] ^5Map voting is unavailable.")
+                        say("^2[Voting] ^7Map voting is unavailable.")
 
                       elif config.nomination_type is None:
 
-                        say("^1[Nominate] ^5Map nomination is unavailable because the number of maps is less than or equal 5.")
+                        say("^2[Nominate] ^7Map nomination is unavailable because the number of maps is less than or equal 5.")
 
                       else:
 
@@ -5256,7 +5504,7 @@ def main(argv):
 
                         if not maplist:
 
-                          say("^1[Search] ^5No matches found for expression ''%s''."
+                          say("^2[Search] ^7No matches found for expression ''%s''."
                               % (lstrip(original_msg[7:])))
 
                         else:
@@ -5266,18 +5514,18 @@ def main(argv):
 
                           if (len(maplist) + 13) > MAPLIST_MAX_SIZE:
 
-                            say("^1[Search] ^5Result for expression ''%s'' is too long (greater than %i characters)." %
+                            say("^2[Search] ^7Result for expression ''%s'' is too long (greater than %i characters)." %
                                 (lstrip(original_msg[7:]), MAPLIST_MAX_SIZE))
 
                           else:
 
-                            say("^1[Search] ^5%s" % (maplist))
+                            say("^2[Search] ^7%s" % (maplist))
 
                       players[player_id][0] = (current_time + config.flood_protection)
 
                     elif msg in ("elapsed", "!elapsed"):
 
-                      say("^1[Elapsed] ^5Usage: %s map/mode" % (original_msg))
+                      say("^2[Elapsed] ^7Usage: %s map/mode" % (original_msg))
                       players[player_id][0] = (current_time + config.flood_protection)
 
                     elif startswith(msg, "elapsed ") or startswith(msg, "!elapsed "):
@@ -5286,7 +5534,7 @@ def main(argv):
 
                       try:
 
-                        say("^1[Elapsed] ^5Time elapsed for the current %s: %s%s" %
+                        say("^2[Elapsed] ^7Time elapsed for the current %s: %s%s" %
                             (elapse, calculate_time(gameinfo[elapse][0], current_time),
                              (" (%i extension%s)" % (gameinfo[elapse][1],
                                                      ("" if gameinfo[elapse][1] == 1 else "s"))
@@ -5294,13 +5542,13 @@ def main(argv):
 
                       except KeyError:
 
-                        say("^1[Elapsed] ^5Incorrect format (map/mode).")
+                        say("^2[Elapsed] ^7Incorrect format (map/mode).")
 
                       players[player_id][0] = (current_time + config.flood_protection)
 
                     elif msg in ("nextgame", "!nextgame"):
 
-                      say("^1[Nextgame] ^5No next game is set.")
+                      say("^2[Nextgame] ^7No next game is set.")
                       players[player_id][0] = (current_time + config.flood_protection)
 
             elif not voting_instructions and not start_second_turn and not recover:
@@ -5322,7 +5570,7 @@ def main(argv):
                     try:
 
                       votes[vote][0] += 1 # Add +1 to whichever option the player voted for.
-
+                      
                     except KeyError:
 
                       pass
@@ -5346,7 +5594,7 @@ def main(argv):
                       pass
 
                     else:
-
+                        
                       players[player_id][4] = None
 
                 elif change_instructions is not True:
@@ -5357,7 +5605,7 @@ def main(argv):
 
                     if msg in ("elapsed", "!elapsed"):
 
-                      say("^1[Elapsed] ^5Usage: %s map/mode" % (original_msg))
+                      say("^2[Elapsed] ^7Usage: %s map/mode" % (original_msg))
                       players[player_id][0] = (current_time + config.flood_protection)
 
                     elif startswith(msg, "elapsed ") or startswith(msg, "!elapsed "):
@@ -5366,7 +5614,7 @@ def main(argv):
 
                       try:
 
-                        say("^1[Elapsed] ^5Time elapsed for the current %s: %s%s" %
+                        say("^2[Elapsed] ^7Time elapsed for the current %s: %s%s" %
                             (elapse, calculate_time(gameinfo[elapse][0], current_time),
                              (" (%i extension%s)" % (gameinfo[elapse][1],
                                                      ("" if gameinfo[elapse][1] == 1 else "s"))
@@ -5374,13 +5622,13 @@ def main(argv):
 
                       except KeyError:
 
-                        say("^1[Elapsed] ^5Incorrect format (map/mode).")
+                        say("^2[Elapsed] ^7Incorrect format (map/mode).")
 
                       players[player_id][0] = (current_time + config.flood_protection)
 
                     elif msg in ("nextgame", "!nextgame"):
 
-                      say("^1[Nextgame] ^5Next %s: %s" %
+                      say("^2[Nextgame] ^7Next %s: %s" %
                           (voting_type,
                            (change_instructions[0] if voting_type == "map" else
                             gamemodes[change_instructions[0]])))
@@ -5428,7 +5676,7 @@ def main(argv):
                         if not decrease_maps:
 
                           break
-
+                        
                         filtered_nominations = [nomination for (priority, nomination) in iter(compare_nominations)
                                                 if priority == i] # Map priority.
 
@@ -5443,7 +5691,7 @@ def main(argv):
                                          if nomination not in filtered_nominations]
 
                   voting_maps = [(priority, nomination) for (nomination_count, priority, nomination) in iter(voting_maps)]
-
+                  
                 else:
 
                   voting_maps = [((config.map_priority[0] if players[player_id][3] in config.maps else config.map_priority[1]),
@@ -5473,10 +5721,10 @@ def main(argv):
                                     if (mapname not in nominated_maps and
                                         lower(mapname) != current_map and
                                         recently_played[lower(mapname)] <= current_time)]
-
+                  
                   if missing_maps == 5 and not available_maps and not available_secondary_maps:
 
-                    svsay("^1[RTV] ^5Rock the vote failed to start! No map is currently available.")
+                    svsay("^2[RTV] ^7Rock the vote failed to start! No map is currently available.")
                     print("CONSOLE: (%s) [RTV] Rock the vote failed to start! No map is currently available."
                           % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                     players = dict((player_id, [timer, False, rtm_vote, None, None])
@@ -5492,7 +5740,7 @@ def main(argv):
 
                       if not voting_modes:
 
-                        svsay("^1[RTM] ^5Rock the mode failed to start! No mode is currently available.")
+                        svsay("^2[RTM] ^7Rock the mode failed to start! No mode is currently available.")
                         print("CONSOLE: (%s) [RTM] Rock the mode failed to start! No mode is currently available."
                               % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                         players = dict((player_id, [timer, rtv_vote, False, nomination, None])
@@ -5502,15 +5750,15 @@ def main(argv):
                         players_items = players.iteritems
 
                       else: # Create voting options.
-
+                      
                         votes = SortableDict(((i+1), [0, config.mode_priority[voting_modes[i]], voting_modes[i], gamemodes[voting_modes[i]]])
                                              for i in xrange(len(voting_modes)))
 
                         if (config.rtm_extend[0] == 2 or
                             (config.rtm_extend[0] == 1 and gameinfo["mode"][1] < config.rtm_extend[1])):
-
+          
                           votes[(len(votes) + 1)] = [0, config.mode_priority[3], None, "Don't change"] # Add the "Don't change" option.
-
+                        
                         votes_values = votes.itervalues
                         votes_items = votes.sorteditems
                         voting_name = "RTM"
@@ -5524,7 +5772,7 @@ def main(argv):
                         voting_second_turn = config.rtm_second_turn
                         voting_change_immediately = config.rtm_change_immediately
                         status.rtv = status.rtm = voting_instructions = start_voting = True
-
+                    
                     continue
 
                   append_map = voting_maps.append
@@ -5548,7 +5796,7 @@ def main(argv):
                       remove_map = available_secondary_maps.remove
 
                       try:
-
+                      
                         for i in xrange((5 - len(voting_maps))):
 
 # Fill any remaining map slots with random secondary maps.
@@ -5568,9 +5816,9 @@ def main(argv):
 
                 if (config.rtv_extend[0] == 2 or
                     (config.rtv_extend[0] == 1 and gameinfo["map"][1] < config.rtv_extend[1])):
-
+          
                   votes[(len(votes) + 1)] = [0, config.map_priority[2], None, "Don't change"] # Add the "Don't change" option.
-
+                        
                 votes_values = votes.itervalues
                 votes_items = votes.sorteditems
                 voting_name = "RTV"
@@ -5587,12 +5835,12 @@ def main(argv):
 
               elif (sum((rtm_vote for (timer, rtv_vote, rtm_vote, nomination, vote_option)
                          in players_values())) >= rtm_players): # Start a RTM voting.
-
+                
                 voting_modes = [gamemode for gamemode in iter(config.rtm) if gamemode != current_mode]
 
                 if not voting_modes:
 
-                  svsay("^1[RTM] ^5Rock the mode failed to start! No mode is currently available.")
+                  svsay("^2[RTM] ^7Rock the mode failed to start! No mode is currently available.")
                   print("CONSOLE: (%s) [RTM] Rock the mode failed to start! No mode is currently available."
                         % (strftime(timenow(), "%d/%m/%Y %H:%M:%S")))
                   players = dict((player_id, [timer, rtv_vote, False, nomination, None])
@@ -5602,15 +5850,15 @@ def main(argv):
                   players_items = players.iteritems
 
                 else: # Create voting options.
-
+                
                   votes = SortableDict(((i+1), [0, config.mode_priority[voting_modes[i]], voting_modes[i], gamemodes[voting_modes[i]]])
                                        for i in xrange(len(voting_modes)))
 
                   if (config.rtm_extend[0] == 2 or
                       (config.rtm_extend[0] == 1 and gameinfo["mode"][1] < config.rtm_extend[1])):
-
+          
                     votes[(len(votes) + 1)] = [0, config.mode_priority[3], None, "Don't change"] # Add the "Don't change" option.
-
+                        
                   votes_values = votes.itervalues
                   votes_items = votes.sorteditems
                   voting_name = "RTM"
@@ -5624,7 +5872,7 @@ def main(argv):
                   voting_second_turn = config.rtm_second_turn
                   voting_change_immediately = config.rtm_change_immediately
                   status.rtv = status.rtm = voting_instructions = start_voting = True
-
+  
       if line is None:
 
         if config.clean_log and getsize(config.logfile) >= config.clean_log[1]: # Clean log file.
@@ -5637,7 +5885,7 @@ def main(argv):
                                      "w:gz")
             compressed_log.add(config.logfile, arcname=basename(config.logfile))
             compressed_log.close()
-
+            
           truncate(0)
           flush()
           fsync(fileno)
@@ -5660,7 +5908,7 @@ def main(argv):
                                 # Skip to whatever the voting does instead of running a redundant voting.
               if voting_change_immediately:
 
-                svsay("^1[%s] ^5Changing %s to %s."
+                svsay("^2[%s] ^7Changing %s to %s."
                       % (voting_name, voting_type, votes[1][3]))
                 print("CONSOLE: (%s) [%s] Changing %s to %s."
                       % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_name, voting_type,
@@ -5669,14 +5917,14 @@ def main(argv):
                 wait_time = (time() + voting_s_wait_time)
 
                 if wait_time > status.times[voting_wait_time]:
-
+                
                   status.times[voting_wait_time] = wait_time
-
+                  
                 change_instructions = True
 
               else:
 
-                svsay("^1[%s] ^5Changing %s to %s next round."
+                svsay("^2[%s] ^7Changing %s to %s next round."
                       % (voting_name, voting_type, votes[1][3]))
                 print("CONSOLE: (%s) [%s] Changing %s to %s next round."
                       % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_name, voting_type,
@@ -5695,12 +5943,12 @@ def main(argv):
               recover = True
 
             else:
-
+              
               skip_voting = False
 
               if not voting_method:
 
-                _voting_countdown = (" Voting will complete in ^1%i ^5minute%s." %
+                _voting_countdown = (" Voting will complete in ^2%i ^7minute%s." %
                                      (voting_countdown,
                                       ("" if voting_countdown == 1 else "s")))
                 voting_time = (voting_countdown * 60)
@@ -5714,17 +5962,17 @@ def main(argv):
 
               if voting_type == "admin": # Admin voting.
 
-                svsay("^1[Description] ^5%s" % (voting_description))
-                svsay("^1[Admin] ^5An admin voting has begun. Type !number to vote.%s" %
+                svsay("^2[Description] ^7%s" % (voting_description))
+                svsay("^2[Admin] ^7An admin voting has begun. Type !number to vote.%s" %
                       (_voting_countdown))
 
               else:
-
-                svsay("^1[%s] ^5Voting for the next %s has begun. Type !number to vote.%s"
+              
+                svsay("^2[%s] ^7Voting for the next %s has begun. Type !number to vote.%s"
                       % (voting_name, voting_type, _voting_countdown))
 
               _voting_countdown = voting_countdown
-              svsay("^1[Votes] ^5%s" % (join(", ", ("%i: %s" % (vote_id, vote_display_value)
+              svsay("^2[Votes] ^7%s" % (join(", ", ("%i: %s" % (vote_id, vote_display_value)
                                                     for (vote_id, (vote_count, priority, vote_value, vote_display_value))
                                                     in votes_items()))))
               voting_time += time()
@@ -5737,10 +5985,10 @@ def main(argv):
               voting_countdown = _voting_countdown
               _voting_countdown += 1
               voting_countdown_seconds = (voting_countdown * 60) if voting_countdown else 30
-              svsay("^1[%s] ^5Second turn voting for the next %s has begun. Type !number to vote. Voting will complete in ^1%i ^5minute%s."
+              svsay("^2[%s] ^7Second turn voting for the next %s has begun. Type !number to vote. Voting will complete in ^2%i ^7minute%s."
                     % (voting_name, voting_type, _voting_countdown,
                        ("" if _voting_countdown == 1 else "s")))
-              svsay("^1[Votes] ^51: %s, 2: %s" % (votes[1][3], votes[2][3]))
+              svsay("^2[Votes] ^71: %s, 2: %s" % (votes[1][3], votes[2][3]))
               voting_time = (time() + (_voting_countdown * 60))
 
             else:
@@ -5775,7 +6023,7 @@ def main(argv):
                 elif (total_players - total_votes) < (most_voted - second_most_voted):
 
                   skip_voting = True
-
+            
             current_time = time()
 
             if voting_time <= current_time or skip_voting:
@@ -5791,14 +6039,14 @@ def main(argv):
                   most_voted_options = [vote_id for (vote_id, (vote_count, priority, vote_value, vote_display_value))
                                         in votes_items() if vote_count == most_voted]
                   vote_percentage = ((100.0 * most_voted) / total_players)
-                  svsay("^1[Description] ^5%s" % (voting_description))
+                  svsay("^2[Description] ^7%s" % (voting_description))
                   print("CONSOLE: (%s) [Description] %s"
                         % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"),
                            voting_description))
 
                   if len(most_voted_options) > 1: # We have a draw.
 
-                    svsay("^1[Admin] ^5Draw (%.1f percent) (%i/%i)!"
+                    svsay("^2[Admin] ^7Draw (%.1f percent) (%i/%i)!"
                           % (vote_percentage, total_votes, total_players))
                     print("CONSOLE: (%s) [Admin] Draw (%.1f percent) (%i/%i)!"
                           % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"),
@@ -5806,13 +6054,13 @@ def main(argv):
 
                   else:
 
-                    svsay("^1[Admin] ^5%s won (%.1f percent) (%i/%i)!"
+                    svsay("^2[Admin] ^7%s won (%.1f percent) (%i/%i)!"
                           % (votes[most_voted_options[0]][3], vote_percentage, total_votes, total_players))
                     print("CONSOLE: (%s) [Admin] %s won (%.1f percent) (%i/%i)!"
                           % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"),
                              votes[most_voted_options[0]][3], vote_percentage, total_votes, total_players))
-
-                  svsay("^1[Result] ^5%s" % (voting_list))
+                    
+                  svsay("^2[Result] ^7%s" % (voting_list))
                   print("CONSOLE: (%s) [Result] %s"
                         % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_list))
                   status.rtv = status.rtm = start_voting = False
@@ -5837,10 +6085,10 @@ def main(argv):
                       if not decrease_options:
 
                         break
-
+                        
                       second_turn_options_filtered = [vote_id for vote_id in iter(second_turn_options)
                                                       if votes[vote_id][1] == i]
-
+                          
                       if second_turn_options_filtered:
 
                         if len(second_turn_options_filtered) > decrease_options: # Get a random sample with the amount of
@@ -5849,7 +6097,7 @@ def main(argv):
 
                         second_turn_options = [vote_id for vote_id in iter(second_turn_options)
                                                if vote_id not in second_turn_options_filtered]
-
+             
                   elif len(second_turn_options) < 2: # We don't have enough options for second turn.
                                                      # Get the second option from the second most voted values.
                     second_turn_second_most_voted = [vote_id for (vote_id, (vote_count, priority, vote_value, vote_display_value))
@@ -5867,14 +6115,14 @@ def main(argv):
                           second_turn_options = [second_turn_options[0],
                                                  choice(second_turn_options_filtered)]
                           break
-
+                                                     
                     else:
 
                       second_turn_options = [second_turn_options[0],
                                              second_turn_second_most_voted[0]]
 
                     sort(second_turn_options)
-
+                  
                   votes = SortableDict(( # Vote count, option priority, vote value, vote display value.
                                         (1, [0, votes[second_turn_options[0]][1],
                                                 votes[second_turn_options[0]][2], votes[second_turn_options[0]][3]]),
@@ -5885,23 +6133,23 @@ def main(argv):
                   votes_items = votes.sorteditems
 
                   if not voting_method:
-
-                    svsay("^1[%s] ^5A second turn between %s and %s will begin in 5 seconds (%i/%i)." %
+                    
+                    svsay("^2[%s] ^7A second turn between %s and %s will begin in 5 seconds (%i/%i)." %
                           (voting_name, votes[1][3], votes[2][3], total_votes, total_players))
-                    svsay("^1[Result] ^5%s" % (voting_list))
+                    svsay("^2[Result] ^7%s" % (voting_list))
                     sleep(5)
 
                   else:
 
-                    svsay("^1[%s] ^5A second turn between %s and %s will begin in the next round (%i/%i)." %
+                    svsay("^2[%s] ^7A second turn between %s and %s will begin in the next round (%i/%i)." %
                           (voting_name, votes[1][3], votes[2][3], total_votes, total_players))
-                    svsay("^1[Result] ^5%s" % (voting_list))
+                    svsay("^2[Result] ^7%s" % (voting_list))
 
                   start_second_turn = True
                   continue
 
                 else: # Voting result.
-
+                  
                   most_voted_options = [vote_id for (vote_id, (vote_count, priority, vote_value, vote_display_value))
                                         in votes_items() if vote_count == most_voted]
                   vote_percentage = ((100.0 * most_voted) / total_players)
@@ -5919,19 +6167,19 @@ def main(argv):
                         break
 
                   most_voted_options = most_voted_options[0]
-
+                                                             
                   if votes[most_voted_options][2] is not None:
 
                     if voting_change_immediately:
 
-                      svsay("^1[%s] ^5Changing %s to %s (%.1f percent) (%i/%i)."
+                      svsay("^2[%s] ^7Changing %s to %s (%.1f percent) (%i/%i)."
                             % (voting_name, voting_type, votes[most_voted_options][3],
                                vote_percentage, total_votes, total_players))
                       print("CONSOLE: (%s) [%s] Changing %s to %s (%.1f percent) (%i/%i)."
                             % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_name, voting_type,
                                votes[most_voted_options][3], vote_percentage,
                                total_votes, total_players))
-                      svsay("^1[Result] ^5%s" % (voting_list))
+                      svsay("^2[Result] ^7%s" % (voting_list))
                       print("CONSOLE: (%s) [Result] %s"
                             % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_list))
                       mbmode(("%i %s" % (current_mode, votes[most_voted_options][2]) if voting_type == "map" else
@@ -5939,48 +6187,48 @@ def main(argv):
                       wait_time = (time() + voting_s_wait_time)
 
                       if wait_time > status.times[voting_wait_time]:
-
+                    
                         status.times[voting_wait_time] = wait_time
 
                       change_instructions = True
 
                     else:
 
-                      svsay("^1[%s] ^5Changing %s to %s next round (%.1f percent) (%i/%i)."
+                      svsay("^2[%s] ^7Changing %s to %s next round (%.1f percent) (%i/%i)."
                             % (voting_name, voting_type, votes[most_voted_options][3],
                                vote_percentage, total_votes, total_players))
                       print("CONSOLE: (%s) [%s] Changing %s to %s next round (%.1f percent) (%i/%i)."
                             % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_name, voting_type,
                                votes[most_voted_options][3], vote_percentage,
                                total_votes, total_players))
-                      svsay("^1[Result] ^5%s" % (voting_list))
+                      svsay("^2[Result] ^7%s" % (voting_list))
                       print("CONSOLE: (%s) [Result] %s"
                             % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_list))
                       change_instructions = (votes[most_voted_options][2], voting_wait_time, voting_s_wait_time)
 
                   else: # "Don't change" option won.
                         # Extend map/mode.
-                    svsay("^1[%s] ^5The voting has failed (extend %s) (%.1f percent) (%i/%i)!"
+                    svsay("^2[%s] ^7The voting has failed (extend %s) (%.1f percent) (%i/%i)!"
                           % (voting_name, voting_type, vote_percentage,
                              total_votes, total_players))
                     print("CONSOLE: (%s) [%s] The voting has failed (extend %s) (%.1f percent) (%i/%i)!"
                           % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_name, voting_type,
                              vote_percentage, total_votes, total_players))
-                    svsay("^1[Result] ^5%s" % (voting_list))
+                    svsay("^2[Result] ^7%s" % (voting_list))
                     print("CONSOLE: (%s) [Result] %s"
                           % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_list))
                     gameinfo[voting_type][1] += 1
                     wait_time = (time() + voting_f_wait_time)
 
                     if wait_time > status.times[voting_wait_time]:
-
+                    
                       status.times[voting_wait_time] = wait_time
-
+                    
                     status.rtv = status.rtm = start_voting = False
 
               else: # Not enough votes.
 
-                svsay("^1[%s] ^5The voting has failed (not enough votes)!"
+                svsay("^2[%s] ^7The voting has failed (not enough votes)!"
                       % (voting_name))
                 print("CONSOLE: (%s) [%s] The voting has failed (not enough votes)!"
                       % (strftime(timenow(), "%d/%m/%Y %H:%M:%S"), voting_name))
@@ -5990,9 +6238,9 @@ def main(argv):
                   wait_time = (time() + voting_f_wait_time)
 
                   if wait_time > status.times[voting_wait_time]:
-
+                
                     status.times[voting_wait_time] = wait_time
-
+                
                 status.rtv = status.rtm = start_voting = False
 
               players = dict((player_id, [timer, False, False, None, None])
@@ -6005,7 +6253,7 @@ def main(argv):
               admin_choices[:] = []
               del votes
               recover = True
-
+              
             elif not voting_method: # Time-based voting.
 
               voting_remaining_time = (voting_time - current_time)
@@ -6014,7 +6262,7 @@ def main(argv):
 
                 if voting_type == "admin":
 
-                  svsay("^1[Description] ^5%s" % (voting_description))
+                  svsay("^2[Description] ^7%s" % (voting_description))
 
                 if voting_countdown_seconds < 60:
 
@@ -6038,7 +6286,7 @@ def main(argv):
               sleep(SLEEP_INTERVAL)
 
         else:
-
+            
           sleep(Check_Status()) # Polling "wait" time.
                                 # Prevents overloading CPU with I/O polling.
 if __name__ == "__main__":
@@ -6048,7 +6296,7 @@ if __name__ == "__main__":
     main(argv)
 
   except KeyboardInterrupt:
-
+    
     exit(2)
 
   except Exception:
