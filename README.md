@@ -1,4 +1,5 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/bsencan/jedi-academy-server.svg)](https://hub.docker.com/r/bsencan/jedi-academy-server/)
+[![](https://images.microbadger.com/badges/image/bsencan/jedi-academy-server.svg)](https://microbadger.com/images/bsencan/jedi-academy-server "Get your own image badge on microbadger.com")
 [![Gitter](https://img.shields.io/gitter/room/isair/jedi-academy-server.js.svg)](https://gitter.im/isair/jedi-academy-server)
 
 The purpose of the project is to provide the JA community the means to set up scalable and solid servers, easily and quickly.
