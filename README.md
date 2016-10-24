@@ -76,16 +76,16 @@ Here is a list of my Jedi Academy servers. All servers are up 24/7, they are hos
 
 A full installation of the [MBII](https://www.moviebattles.org/) mod is required to join.
 
-**Vote Your Fun Map [FA|RTV]**  
+**\*US\* COMMUNITY [FA|RTV]**  
 107.170.198.217:29073
 
-**Vote Your Map [FA|RTV]**  
-107.170.198.217:29071
-
-**Vote Your Map [Open|RTV]**  
+**\*US\* COMMUNITY [Open|RTV]**  
 107.170.198.217:29072
 
-**Vote Your Map [Duel|RTV]** (Closed until I find good admins)
+**\*US\* COMMUNITY [FA|RTV]**  
+107.170.198.217:29071
+
+**\*US\* COMMUNITY [Duel|RTV]**  
 107.170.198.217:29070
 
 Development
