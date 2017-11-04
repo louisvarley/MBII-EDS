@@ -7,9 +7,8 @@ The purpose of the project is to provide the JA community the means to set up sc
 Table of Contents
 ---
 1. [Usage](#usage)
-2. [Stackfile](#stackfile)
-3. [My Servers](#my-servers)
-4. [Development](#development)
+2. [Stackfile Example](#stackfile-example)
+3. [Development](#development)
 
 Usage
 ---
@@ -34,10 +33,10 @@ All environment variables are optional. If not defined, `NET_PORT` defaults to 2
 
 All your game and configuration files (e.g. `server.cfg`, `rtvrtm.cfg`, `maps.txt`, `base` and other folders with `pk3` files in them) must be in the path you'll replace `PATH_TO_GAME_FILES` with.
 
-Stackfile
+Stackfile Example
 ---
 
-You can set up multiple servers in the blink of an eye.
+You can set up multiple servers in the blink of an eye on [Docker Cloud](https://cloud.docker.com/) using a Stackfile like the following.
 
 ```yml
 ffa:
@@ -68,25 +67,6 @@ mb2_duels:
     - SERVER_CFG=mb2_duel_server.cfg
     - RTVRTM_CFG=duel_rtvrtm.cfg
 ```
-
-My Servers
----
-
-Here is a list of my Jedi Academy servers. All servers are up 24/7, they are hosted on docker cloud with automatic restart on failure.
-
-A full installation of the [MBII](https://www.moviebattles.org/) mod is required to join.
-
-**\*US\* COMMUNITY [FA|RTV]**  
-107.170.198.217:29073
-
-**\*US\* COMMUNITY [Open|RTV]**  
-107.170.198.217:29072
-
-**\*US\* COMMUNITY [FA|RTV]**  
-107.170.198.217:29071
-
-**\*US\* COMMUNITY [Duel|RTV]**  
-107.170.198.217:29070
 
 Development
 ---
