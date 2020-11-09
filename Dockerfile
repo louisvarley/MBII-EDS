@@ -5,7 +5,8 @@ MAINTAINER Baris Sencan <baris.sncn@gmail.com>
 EXPOSE 29060-29062/udp 29070-29081/udp
 
 # Install dependencies.
-RUN yum install -y glibc.i686
+RUN yum install -y --allowerasing glibc.i686
+RUN yum install -y --allowerasing libcurl.i686
 
 # Copy server files.
 COPY server/libcxa.so.1 /usr/lib/libcxa.so.1
