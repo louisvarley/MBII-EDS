@@ -26,7 +26,7 @@ if [ -f "$RTVRTM_CFG_PATH" ]; then
 fi
 
 # Start the server.
-/opt/ja-server/linuxjampded \
+/opt/openjk/openjkded \
   +set dedicated 2 \
   +set net_port "$NET_PORT" \
   "$SET_FS_GAME" \

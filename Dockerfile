@@ -9,11 +9,13 @@ RUN yum install -y --allowerasing glibc.i686
 RUN yum install -y --allowerasing libcurl.i686
 
 # Copy server files.
-COPY server/libcxa.so.1 /usr/lib/libcxa.so.1
-COPY server/linuxjampded /opt/ja-server/linuxjampded
-COPY server/jampgamei386.so /opt/ja-server/jampgamei386.so
-COPY server/start.sh /opt/ja-server/start.sh
+
+COPY server/rdsp-vanilla_i386.so /usr/lib/rdsp-vanilla_i386.so
+COPY server/rd-vanilla_i386.so /usr/lib/rd-vanilla_i386.so
 COPY server/rtvrtm.py /opt/rtvrtm/rtvrtm.py
+COPY server/openjkded /opt/openjk/openjkded
+COPY server/start.sh /opt/openjk/start.sh
+
 
 # Mount game data volume.
 VOLUME /jedi-academy
@@ -23,4 +25,4 @@ VOLUME /jedi-academy
 WORKDIR /jedi-academy
 
 # Start the server.
-CMD ["/opt/ja-server/start.sh"]
+CMD ["/opt/openjk/start.sh"]
