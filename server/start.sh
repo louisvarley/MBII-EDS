@@ -25,8 +25,10 @@ if [ -f "$RTVRTM_CFG_PATH" ]; then
   done &
 fi
 
+cd /opt/openjk
+
 # Start the server.
-/opt/openjk/openjkded \
+openjkded \
   +set dedicated 2 \
   +set net_port "$NET_PORT" \
   "$SET_FS_GAME" \
