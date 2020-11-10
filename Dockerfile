@@ -10,8 +10,8 @@ RUN yum install -y --allowerasing libcurl.i686
 
 # Copy server files.
 
-COPY server/rdsp-vanilla_i386.so /usr/lib/rdsp-vanilla_i386.so
-COPY server/rd-vanilla_i386.so /usr/lib/rd-vanilla_i386.so
+COPY server/rdsp-vanilla.so /usr/lib/rdsp-vanilla.so
+COPY server/rd-vanilla.so /usr/lib/rd-vanilla.so
 COPY server/rtvrtm.py /opt/rtvrtm/rtvrtm.py
 COPY server/openjkded /opt/openjk/openjkded
 COPY server/start.sh /opt/openjk/start.sh
