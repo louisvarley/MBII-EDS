@@ -1,73 +1,67 @@
-[![Docker Pulls](https://img.shields.io/docker/pulls/bsencan/jedi-academy-server.svg)](https://hub.docker.com/r/bsencan/jedi-academy-server/)
-[![](https://images.microbadger.com/badges/image/bsencan/jedi-academy-server.svg)](https://microbadger.com/images/bsencan/jedi-academy-server "Get your own image badge on microbadger.com")
-[![Gitter](https://img.shields.io/gitter/room/isair/jedi-academy-server.js.svg)](https://gitter.im/isair/jedi-academy-server)
+## New Republic Clan Docker Server Manag
 
-The purpose of the project is to provide the JA community the means to set up scalable and solid servers, easily and quickly.
+Built for the **MBII New Republic Clan** to run many server instances using docker
+This can be used as and where is needed.
 
-Table of Contents
----
-1. [Usage](#usage)
-2. [Stackfile Example](#stackfile-example)
-3. [Development](#development)
+## Introduction
+This script based on an older docker build by https://github.com/isair/jedi-academy-server
+Some of the components including the use of the OG Engine needed an update. 
 
-Usage
----
+This package comes with a management file to make managing servers easier and quicker without the need to touch docker itself. 
 
-Pull the image
-```sh
-docker pull bsencan/jedi-academy-server
-```
+## Setup Requires
 
-Then run it
-```sh
-docker run \
-  bsencan/jedi-academy-server \
-  -v "PATH_TO_GAME_FILES":"/jedi-academy" \
-  -e NET_PORT=YOUR_SERVER_PORT \
-  -e FS_GAME=MOD_NAME \
-  -e SERVER_CFG=CFG_FILE \
-  -e RTVRTM_CFG=RTVRTM_CFG_FILE
-```
+- Repo here is pulled and original Docker Image is pulled
+- Run `make` within the directory to build the image and allow the server to use this altered build
+- MBII (Linux) should be installed at /opt/openjk/MBII
+- OpenJK files "should" be called at /opt/openjk/base (image does some with them)
+- Original JA Base files also in /opt/openjk/base
+- A folder in /opt/openjk/configs (See Configs)
 
-All environment variables are optional. If not defined, `NET_PORT` defaults to 29070, `FS_GAME` defaults to `base`, and `SERVER_CFG` defaults to `server.cfg`, and `RTVRTM_CFG` defaults to blank (which means rtvrtm won't be initialized).
+Now you can run the python script MBII.py with the following arguements
 
-All your game and configuration files (e.g. `server.cfg`, `rtvrtm.cfg`, `maps.txt`, `base` and other folders with `pk3` files in them) must be in the path you'll replace `PATH_TO_GAME_FILES` with.
+-n [Name of your instance]
+-p [port]
+-a [action]
 
-Stackfile Example
----
+Some examples. In this example the instance we are calling "open"
 
-You can set up multiple servers in the blink of an eye on [Docker Cloud](https://cloud.docker.com/) using a Stackfile like the following.
+./MBII.py -n open -a start -p 29072
+./MBII.py -n open -a restart
+./MBII.py -n open -a stop
 
-```yml
-ffa:
-  image: bsencan/jedi-academy-server:latest
-  restart: on-failure
-  ports:
-    - "29070:29070/udp"
-  volumes:
-    - PATH_TO_GAME_FILES:/jedi-academy
-duels:
-  image: bsencan/jedi-academy-server:latest
-  restart: on-failure
-  ports:
-    - "29071:29070/udp"
-  volumes:
-    - PATH_TO_GAME_FILES:/jedi-academy
-  environment:
-    - SERVER_CFG=duel_server.cfg
-mb2_duels:
-  image: bsencan/jedi-academy-server:latest
-  restart: on-failure
-  ports:
-    - "29072:29070/udp"
-  volumes:
-    - PATH_TO_GAME_FILES:/jedi-academy
-  environment:
-    - FS_GAME=MBII
-    - SERVER_CFG=mb2_duel_server.cfg
-    - RTVRTM_CFG=duel_rtvrtm.cfg
-```
+## Configs
 
-Development
----
-If you cloned this repository and made changes to it, you can build a docker image by running `make`, and test it with `start-local-osx.sh`. You'll probably need to edit that script at the moment, but I'll make it more configurable later on.
+Docker mounts your OpenJK Directory and looks for configs by matching your given instance name.
+If your instance name you called in the MBII command was "open" it will look for
+`open-server.cfg`
+`open-rtvrtm.cfg`
+
+So merely create these config files and leave in your config directory
+
+if there is not rtvrtm.cfg file then Rock the Vote wont be started as a service within your docker. 
+
+## Server logs
+
+Server logs hide out on the docker itself at
+`/root/.local/share/openjk/MBII/*NAME*-games.log`
+
+### Still to do
+
+Many things
+
+- [ ] Replace any references to IP or PORT in config files with a place holder added by docker on launch
+- [ ] Make logs accessable outside Docker by symlink them within MBII directory
+- [ ]  Make Python Management tool auto compile and be used as a binary 
+- [ ]  Create an install.sh file to setup all directories download OpenJK and MBII
+- [ ] Make management tool auto check for MBII updates and updates server
+- [ ] Management tool to parse the server configs for info
+- [ ] Wizard mode to create configs from scratch (maybe slightly gui)
+- [ ] Inbuild discord bot connection thingy for external management
+- [ ] Status action to show connected players
+- [ ] Docks to auto reboot after 24 hours and when no players? maybe better than timed
+- [ ] Management tool to expose RCON and SMOD outside the dock (and for discord bot)
+- [ ] Manegement tool to be able to stream in-game chatter outside the dock (and for discord bot)
+- [ ] Many more things probably
+
+
