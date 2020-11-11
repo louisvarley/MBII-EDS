@@ -4,7 +4,7 @@
 [ -z "$NET_PORT" ] && NET_PORT=29070
 [ -z "$NET_GAME" ] && NET_GAME=base
 [ -z "$RTVRTM_CONFIG" ] && RTVRTM_CONFIG=
-[ -z "$SERVER_CONFIG" ] && SERVER_CONFIG=server.cfg
+[ -z "$SERVER_CONFIG" ] && SERVER_CONFIG=open-server.cfg
 
 # Colors
 RESTORE='\033[0m'
@@ -31,7 +31,20 @@ echo-blue(){
   echo -e "${dt}: ${BLUE}${1}${RESTORE}"
 }
 
+echo "----------------------------------"
+
+echo "MBII Docker Instance"
+echo "Docker Initialised with the following config"
+
+echo "Port: $NET_PORT"
+echo "Game: $NET_GAME"
+echo "Server Config: $SERVER_CONFIG"
+echo "RTMRTV Config: $RTVRTM_CONFIG"
+echo "----------------------------------"
+
 echo-green "Starting $NET_GAME Dedicated Server..."
+
+echo "----------------------------------"
 
 # Configuration files need to be under /root/.ja/base directory.
 
@@ -47,9 +60,18 @@ ln -s "/root/.local/share/openjk/$NET_GAME" /root/.ja/$NET_GAME
 
 if [ -f "/opt/openjk/configs/${SERVER_CONFIG}" ]; then
     echo-green "Copying HOST /opt/openjk/configs/${SERVER_CONFIG} to DOCKER /root/.ja/${NET_GAME}/${SERVER_CONFIG}"
+	
     cp /opt/openjk/configs/$SERVER_CONFIG /root/.ja/$NET_GAME/$SERVER_CONFIG
+	cp /opt/openjk/configs/$SERVER_CONFIG /opt/openjk/${NET_GAME}/$SERVER_CONFIG	
 else
     echo-red "Server Config on HOST at /opt/openjk/configs/${SERVER_CONFIG} Not Found. Cannot Continue..."
+    exit 1
+fi
+
+if [ -f "/root/.ja/$NET_GAME/$SERVER_CONFIG" ]; then
+    echo-green "Server Config found now at /root/.ja/$NET_GAME/$SERVER_CONFIG"
+else
+    echo-red "Server Config not found now at /root/.ja/$NET_GAME/$SERVER_CONFIG"
     exit 1
 fi
 
@@ -68,7 +90,7 @@ if [ -f "/opt/openjk/configs/${RTVRTM_CONFIG}" ]; then
   cp /opt/openjk/MBII/*.txt /opt/rtvrtm
   cp "/opt/openjk/configs/${RTVRTM_CONFIG}" /opt/rtvrtm/rtvrtm.cfg
 
-  echo-green "Starting RTV RTM Service for this $NET_GAME dedicated server"
+  echo-green "Starting RTV RTM Service"
 
   until (sleep 10; python /opt/rtvrtm/rtvrtm.py -c /opt/rtvrtm/rtvrtm.cfg --noupdate); do
     echo "RTVRTM crashed with exit code $?. Restarting..." >&2
@@ -79,9 +101,6 @@ fi
 
 cd /opt/openjk/
 
-
-echo-green "Port $NET_PORT"
-
 sleep 4
 
 # Start the server.
@@ -89,5 +108,5 @@ openjkded \
   +set dedicated 2 \
   +set net_port "$NET_PORT" \
   +set fs_game MBII \
-  +logfile 3
   +exec "$SERVER_CONFIG"
+  

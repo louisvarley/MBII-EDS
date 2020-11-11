@@ -26,6 +26,16 @@ VOLUME_BINDINGS =   {
                              
 # Static Class to hold Some Random Colours                        
 class bcolors:
+
+    #^1 - red 
+    #^2 - green 
+    #^3 - yellow 
+    #^4 - blue 
+    #^5 - cyan 
+    #^6 - purple 
+    #^7 - white 
+    #^0 - black 
+
     HEADER = '\033[95m'
     OK = '\033[92m'
     WARNING = '\033[93m'
@@ -176,14 +186,18 @@ class instance_manager:
             self._PORT = self.get_port()
         
     # Method to Grab the Port used by OpenJK Server by running netstat
-    def get_port(self):    
+    def get_port(self):  
+        port = 0
         if(self._DOCKER_MANAGER.is_active()):
             stream =  self._DOCKER_MANAGER.exec_run("netstat -tulpn | grep openjkded")
             for val in stream:
                 for item in val.split("\n"):
                     if "openjkded" in item:
-                        port = item.split()[3].split(":")[1];          
-            return port          
+                        port = item.split()[3].split(":")[1];   
+
+            if(port > 0):
+                return str(port)  
+
         return None
 
     # Will use this to get config info
@@ -205,8 +219,6 @@ class instance_manager:
             self._DOCKER_MANAGER.stop()
         
         # Instance Can Start
-        os.system("touch " + self._SERVER_LOG_PATH)
-        
         print("-------------------------------------------")
         print("Current MBII Version Is " + bcolors.OK + self._MB2_MANAGER.get_version() + bcolors.ENDC)
         print("-------------------------------------------")
@@ -229,27 +241,25 @@ class instance_manager:
                 print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Found RTVRTM config at " +  self._RTVRTM_CONFIG_PATH + bcolors.ENDC)
                 print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Vote" + bcolors.ENDC)
                 
-            if(os.path.exists(self._SERVER_LOG_PATH)):    
-                print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Found Server Log at " +  self._SERVER_LOG_PATH + bcolors.ENDC)
-            else:
-                print(bcolors.FAIL + "[NO] " + bcolors.ENDC + "Found Server Log at  " +  self._SERVER_LOG_PATH + bcolors.ENDC)
-                
             print("-------------------------------------------")
             self._DOCKER_MANAGER.start(self._PORT, "MBII", self._SERVER_CONFIG_NAME, self._RTVRTM_CONFIG_NAME, self._VERBOSE)
 
         else:
-            print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Found SERVER config at " + SERVER_CONFIG_PATH)
+            print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Found SERVER config at " + self._SERVER_CONFIG_PATH)
             print(bcolors.FAIL + "Unable to proceed without a valid Server Config File" + bcolors.ENDC)
             exit()
 
     def status(self):
 
+        self._PORT = self.get_port()
+
         print("-------------------------------------------")
         if(self._DOCKER_MANAGER.is_active()):
 
-            print("Port: " + self.get_port() )
+            print("Port: " + self._PORT)
             print("Docker Instance: " + self._DOCKER_INSTANCE_NAME)
             print("Server Name " + self.server_config_info() )
+            print("Full Address " + self._EXTERNAL_IP + ":" + self._PORT)
             print("-------------------------------------------")     
             print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Running")
 
@@ -319,7 +329,7 @@ class main:
             usage()
             exit()
             
-        opts, argv = getopt.getopt(sys.argv[1:], 'n:a:v:p:')   
+        opts, argv = getopt.getopt(sys.argv[1:], 'n:a:p:v')   
      
         VERBOSE=False
         PORT=None
