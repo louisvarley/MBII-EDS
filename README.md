@@ -26,9 +26,9 @@ Now you can run the python script MBII.py with the following arguements
 
 Some examples. In this example the instance we are calling "open"
 
-./MBII.py -n open -a start -p 29072
-./MBII.py -n open -a restart
-./MBII.py -n open -a stop
+`./MBII.py -n open -a start -p 29072`
+`./MBII.py -n open -a restart`
+`./MBII.py -n open -a stop`
 
 ## Configs
 
