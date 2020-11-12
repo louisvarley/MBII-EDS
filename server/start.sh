@@ -103,10 +103,9 @@ cd /opt/openjk/
 
 sleep 4
 
+until (sleep 1; mbiided +set dedicated 2 +set net_port "$NET_PORT" +set fs_game MBII +exec "$SERVER_CONFIG"); do
+    echo "Dedicated Server crashed with exit code $?. Restarting..." >&2
+done
 # Start the server.
-openjkded \
-  +set dedicated 2 \
-  +set net_port "$NET_PORT" \
-  +set fs_game MBII \
-  +exec "$SERVER_CONFIG"
+
   

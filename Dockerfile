@@ -24,7 +24,6 @@ VOLUME /opt/openjk/configs
 COPY server/base/* /root/.local/share/openjk/base/
 
 # LIB Files
-COPY server/rdsp-vanilla_i386.so /usr/lib/
 COPY server/rd-vanilla_i386.so /usr/lib/
 
 # OpenJK Files
@@ -32,6 +31,7 @@ COPY server/OpenJK/* /opt/openjk/
 
 # Binaries
 COPY server/openjkded.i386 /usr/bin/openjkded
+copy server/mbiided.i386 /usr/bin/mbiided
 
 # Scripts
 COPY server/rtvrtm.py /opt/rtvrtm/rtvrtm.py
@@ -45,6 +45,7 @@ WORKDIR /opt/openjk
 # Start the server.
 
 RUN chmod +x /usr/bin/openjkded
+RUN chmod +x /usr/bin/mbiided
 RUN chmod +x /opt/openjk/start.sh
 
 CMD ["/opt/openjk/start.sh"]
