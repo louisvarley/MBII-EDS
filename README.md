@@ -1,5 +1,5 @@
 
-## New Republic Clan Docker Server Manag
+## New Republic Clan Docker Server Manager
 
 Built for the **MBII New Republic Clan** 
 This is a docker image and a helper python management program to run many server instances using quickly and easily.
