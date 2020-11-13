@@ -34,15 +34,19 @@ Instances are a single docker running a single MBII server. each instance has a 
 
 ## Creating an Instance
 
-All that is needed to create an instance, is a server.cfg and rtmrtv.cfg with named in the correct way to be added to the folder at `/opt/ojk2/configs`
-named as such
-`open-server.cfg`
-`open-rtmrtv.cfg`
+All that is needed to create an instance is to create your own server.json file located in the `config` folder of this project. 
 
-you should ensure your rtmrtv.cfg has the correct place holders. for example where the config uses a port. replace with [PORT]
-When your instance starts, this will be replaced with the actual port number used automatically. 
+These config files are a cut down version of both the `server.cfg` and `rtvrtm.cfg` 
+not all configs in these files are in the json file. Should you wish to add more global settings, you can edit 
+`rtvrtm.template` and `server.template` 
+These templates are used to build the server by importing the settings from your config.
 
-more on naming configs below
+There is an example json file called `default.json.example`
+Copy this file and name it `some-name.json` replacing `some-name` with a name you wish to give your instance, such as `open` or `clan-private`
+
+Edit the file and make any changes to the config which you want. Should you make any mistakes in the formatting. The server will not start and will warn you about JSON errors. 
+
+Ensure the port you use is one you have not already assigned to another instance otherwise the program will have trouble monitoring and RTV/RTM will not work. 
 
 ## Actions against an instance
 #### Usage
@@ -85,17 +89,15 @@ When you run the start action if there was a problem, you may not know unless it
 Many things
 
 - [x] Docks will auto restart the dedicated server if for any reason it fails. 
-- [ ] Replace any references to PORT in config files with a place holder added by docker on launch
+- [x] Use new JSON format files to setup the server
 - [ ] Log can read extracted by an action
+- [ ] Setup to handle auto server messages on the server
 - [ ]  Make Python Management tool auto compile and be used as a binary 
 - [ ]  Create an install.sh file to setup all directories download OpenJK and MBII
 - [ ] Make management tool auto check for MBII updates and updates server
-- [ ] Management tool to parse the server configs for info
 - [ ] Wizard mode to create configs from scratch (maybe slightly gui)
-- [ ] Inbuild discord bot connection thingy for external management
 - [ ] Status action to show connected players
 - [ ] Docks to auto reboot after 24 hours and when no players? maybe better than timed
 - [ ] Management tool to expose RCON and SMOD
-- [ ] Many more things probably
 
 

@@ -6,41 +6,27 @@ import docker
 import re
 import urllib2
 import argparse
-
-# Various Configs left here so they are accessable
-
-#GLOBALS
-NAME = None
-MODE = None
-PORT = None
-ACTION = None
-VERBOSE = False
-INSTANCE_NAME = None
-
-#DOCKER
-#VOLUMES = ['/opt/openjk/MBII','/opt/openjk/base','/opt/openjk/configs']
-
+import json
  
 # Holds Global Variables / Configs
 class globals:
 
     _VERBOSE = False
+    _SCRIPT_PATH = os.path.dirname(os.path.realpath(__file__))
     _MB2_PATH = "/opt/openjk/MBII"
     _BASE_PATH = "/opt/openjk/base"
     _DOCKER_BASE_PATH = "/root/.local/share/openjk/MBII"
-    _CONFIG_PATH = "/opt/openjk/configs"
+    _CONFIG_PATH = _SCRIPT_PATH + "/configs"
     _VOLUME_BINDINGS =   {
-                            '/opt/openjk/MBII': {'bind': '/opt/openjk/MBII', 'mode': 'rw'}, 
-                            '/opt/openjk/base': {'bind': '/opt/openjk/base', 'mode': 'ro'}, 
-                            '/opt/openjk/configs': {'bind': '/opt/openjk/configs', 'mode': 'ro'},              
+                            _MB2_PATH: {'bind': '/opt/openjk/MBII', 'mode': 'rw'}, 
+                            _BASE_PATH: {'bind': '/opt/openjk/base', 'mode': 'ro'}, 
+                            _CONFIG_PATH: {'bind': '/opt/openjk/configs', 'mode': 'ro'},              
                          }
  
 # Random Tools and Helpers
 class helpers:
 
     def fix_line(self, line):
-
-      """Fix for the Client log line missing the \n (newline) character."""
 
       startswith = str.startswith
       split = str.split
@@ -111,8 +97,6 @@ class bcolors:
         
         return text
         
-    
-
 # An Instance of Docker
 class docker_instance:
 
@@ -184,12 +168,13 @@ class docker_instance:
                 )    
                 
                 container.start()
+                
                 stream = container.exec_run("/opt/openjk/start.sh", stdout=globals._VERBOSE, stderr=globals._VERBOSE, stream=globals._VERBOSE)
 
                 if(globals._VERBOSE):
                     for val in stream:
                         print (val)
-            
+
     def ssh(self):
         os.system("docker exec -it " + self._INSTANCE_NAME + " bash")
         sys.exit(0)
@@ -197,22 +182,26 @@ class docker_instance:
     def read(self, path):  
         file_contents = self.exec_run("cat "+ path)
         return file_contents
-    
-            
+             
 # An Instance of MBII                        
 class server_instance:
 
     _NAME = None
+    _HOST_NAME = None
     _DOCKER_INSTANCE_NAME = None 
     _DOCKER_INSTANCE = None
     
     _EXTERNAL_IP = None
     _PORT = None
     
+    _PRIMARY_MAP_PATH = None
+    _SECONDARY_MAP_PATH = None
+    
     _SERVER_CONFIG_NAME = None
     _SERVER_CONFIG_PATH = None
     _RTVRTM_CONFIG_NAME = None
     _RTVRTM_CONFIG_PATH = None
+    
     _SERVER_LOG_NAME = None
     _SERVER_LOG_PATH = None
     
@@ -221,14 +210,22 @@ class server_instance:
         self._NAME = name
         self._DOCKER_INSTANCE_NAME = "mbii-ded-" + name
         self._EXTERNAL_IP = urllib2.urlopen('http://ip.42.pl/raw').read()
+        
+        self._PRIMARY_MAP_PATH = globals._MB2_PATH + "/" + self._NAME + "-primary.txt"
+        self._SECONDARY_MAP_PATH = globals._MB2_PATH + "/" + self._NAME + "-secondary.txt"
+        
+        self._CONFIG = self.get_config()
+        
+        self._PORT = str(self._CONFIG['server']['port'])
+        self._HOST_NAME = self._CONFIG['server']['host_name']
 
         # server.CFG
         self._SERVER_CONFIG_NAME = self._NAME + "-server.cfg"
-        self._SERVER_CONFIG_PATH = globals._CONFIG_PATH + "/" + self._SERVER_CONFIG_NAME
+        self._SERVER_CONFIG_PATH = globals._MB2_PATH + "/" + self._SERVER_CONFIG_NAME
         
         # rtvrtm.CFG
         self._RTVRTM_CONFIG_NAME = self._NAME + "-rtvrtm.cfg"       
-        self._RTVRTM_CONFIG_PATH = globals._CONFIG_PATH + "/" + self._RTVRTM_CONFIG_NAME    
+        self._RTVRTM_CONFIG_PATH = globals._MB2_PATH + "/" + self._RTVRTM_CONFIG_NAME    
         
         # games.log
         self._SERVER_LOG_NAME = self._NAME + "-games.log"
@@ -239,7 +236,155 @@ class server_instance:
         # If instance running grab port
         if(self._DOCKER_INSTANCE.is_active()):
             self._PORT = self.get_port()
-           
+       
+    def generate_server_config(self):
+        with open(globals._CONFIG_PATH + "/server.template", 'r') as file:
+            data = file.read()
+            
+            # Server
+            data = data.replace("[host_name]",self._CONFIG['server']['host_name'])
+            data = data.replace("[discord]",self._CONFIG['server']['discord'])
+            data = data.replace("[rcon_password]",self._CONFIG['security']['rcon_password'])
+            data = data.replace("[log_name]",self._SERVER_LOG_NAME)
+            
+            # Messages
+            data = data.replace("[message_of_the_day]",self._CONFIG['messages']['message_of_the_day'].replace("\n","\\n"))
+            
+            # Game
+            data = data.replace("[server_password]",self._CONFIG['security']['server_password'])
+            data = data.replace("[map_win_limit]",str(self._CONFIG['game']['map_win_limit']))
+            data = data.replace("[map_round_limit]",str(self._CONFIG['game']['map_round_limit']))
+            data = data.replace("[balance_mode]",str(self._CONFIG['game']['balance_mode']))
+            data = data.replace("[competitive_config]",str(self._CONFIG['game']['competitive_config']))
+            
+            # Admin
+            data = data.replace("[admin_1_password]",self._CONFIG['smod']['admin_1']['password']) 
+            data = data.replace("[admin_1_config]",str(self._CONFIG['smod']['admin_1']['config']))
+            
+            data = data.replace("[admin_2_password]",self._CONFIG['smod']['admin_2']['password']) 
+            data = data.replace("[admin_2_config]",str(self._CONFIG['smod']['admin_2']['config']))
+            
+            data = data.replace("[admin_3_password]",self._CONFIG['smod']['admin_3']['password']) 
+            data = data.replace("[admin_3_config]",str(self._CONFIG['smod']['admin_3']['config']))   
+            
+            data = data.replace("[admin_4_password]",self._CONFIG['smod']['admin_4']['password']) 
+            data = data.replace("[admin_4_config]",str(self._CONFIG['smod']['admin_4']['config']))
+            
+            data = data.replace("[admin_5_password]",self._CONFIG['smod']['admin_5']['password']) 
+            data = data.replace("[admin_5_config]",str(self._CONFIG['smod']['admin_5']['config']))
+            
+            data = data.replace("[admin_6_password]",self._CONFIG['smod']['admin_6']['password']) 
+            data = data.replace("[admin_6_config]",str(self._CONFIG['smod']['admin_6']['config']))
+            
+            data = data.replace("[admin_7_password]",self._CONFIG['smod']['admin_7']['password']) 
+            data = data.replace("[admin_7_config]",str(self._CONFIG['smod']['admin_7']['config']))
+            
+            data = data.replace("[admin_8_password]",self._CONFIG['smod']['admin_8']['password']) 
+            data = data.replace("[admin_8_config]",str(self._CONFIG['smod']['admin_8']['config']))
+            
+            data = data.replace("[admin_9_password]",self._CONFIG['smod']['admin_9']['password']) 
+            data = data.replace("[admin_9_config]",str(self._CONFIG['smod']['admin_9']['config']))
+            
+            data = data.replace("[admin_10_password]",self._CONFIG['smod']['admin_10']['password']) 
+            data = data.replace("[admin_10_config]",str(self._CONFIG['smod']['admin_10']['config']))
+
+            # Maps
+ 
+            data = data.replace("[map_1]",self._CONFIG['map_rotation_order'][0])
+            data = data.replace("[map_2]",self._CONFIG['map_rotation_order'][1])
+            data = data.replace("[map_3]",self._CONFIG['map_rotation_order'][2])
+            data = data.replace("[map_4]",self._CONFIG['map_rotation_order'][3])
+            data = data.replace("[map_5]",self._CONFIG['map_rotation_order'][4])
+            data = data.replace("[map_6]",self._CONFIG['map_rotation_order'][5])
+            data = data.replace("[map_7]",self._CONFIG['map_rotation_order'][6])
+            data = data.replace("[map_8]",self._CONFIG['map_rotation_order'][7])
+            data = data.replace("[map_9]",self._CONFIG['map_rotation_order'][8])
+            
+            # 0 = Open mode, 1 = Semi-Authentic, 2 = Full-Authentic, 3 = Duel, 4 = Legends
+            
+            # Mode
+            
+            if(self._CONFIG['game']['mode'].lower() == "Open"):
+                data = data.replace("[mode]","0")   
+                
+            if(self._CONFIG['game']['mode'].lower() == "Semi-Authentic"):
+                data = data.replace("[mode]","1") 
+                
+            if(self._CONFIG['game']['mode'].lower() == "Full-Authentic"):
+                data = data.replace("[mode]","2") 
+                
+            if(self._CONFIG['game']['mode'].lower() == "Duel"):
+                data = data.replace("[mode]","3") 
+                
+            if(self._CONFIG['game']['mode'].lower() == "Legends"):
+                data = data.replace("[mode]","4")    
+
+            # Default if no matches were made
+            data = data.replace("[mode]","0")                
+            
+            # Class Limits
+            cl_string = ""
+            for x in self._CONFIG['class_limits']:
+                cl_string = cl_string + str(self._CONFIG['class_limits'][x]) + "-"
+                
+            cl_string = cl_string.rstrip("-")
+            data = data.replace("[class_limits]",cl_string)
+            
+            # Save to MBII Folder
+            f = open(self._SERVER_CONFIG_PATH, "w")
+            f.write(data)
+            f.close()
+
+    def generate_rtvrtm_config(self):
+    
+        if(self._CONFIG['server']['enable_rtv'] or self._CONFIG['server']['enable_rtm']):
+    
+            with open(globals._CONFIG_PATH + "/rtvrtm.template", 'r') as file:
+                data = file.read()
+                data = data.replace("[log_path]",self._SERVER_LOG_PATH)
+                data = data.replace("[rcon_password]",self._CONFIG['security']['rcon_password'])          
+                data = data.replace("[primary_maps_path]",  self._PRIMARY_MAP_PATH)    
+                data = data.replace("[secondary_maps_path]", self._SECONDARY_MAP_PATH)            
+                data = data.replace("[mbii_path]",globals._MB2_PATH)           
+                data = data.replace("[port]",str(self._CONFIG['server']['port']))  
+
+                if(self._CONFIG['server']['enable_rtv']):
+                    data = data.replace("[rtv_mode]","1")  
+                else:
+                    data = data.replace("[rtv_mode]","0")  
+ 
+                if(self._CONFIG['server']['enable_rtm']):
+                    data = data.replace("[rtm_mode]",str(self._CONFIG['server']['rtm_mode'])) 
+                else:
+                    data = data.replace("[rtm_mode]","0")                     
+                    
+            f = open(self._RTVRTM_CONFIG_PATH, "w")
+            f.write(data)
+            f.close()    
+              
+    def generate_rtvrtm_maps(self):
+    
+        if(self._CONFIG['server']['enable_rtv']):
+            f = open(self._PRIMARY_MAP_PATH, "w")
+            f.write("\n".join(self._CONFIG['primary_maps']))
+            f.close()             
+        
+            f = open(self._SECONDARY_MAP_PATH, "w")
+            f.write("\n".join(self._CONFIG['secondary_maps']))
+            f.close()           
+                       
+    def get_config(self):
+    
+        config_file_path = globals._CONFIG_PATH + "/" + self._NAME + ".json"
+        
+        if(not os.path.isfile(config_file_path)):
+            print(bcolors.FAIL + config_file_path + "was not found" + bcolors.ENDC)
+    
+        with open(config_file_path) as config_data:
+            data = json.load(config_data)
+            
+        return data
+       
     # Method to Grab the Port used by OpenJK Server by running netstat
     def get_port(self):  
         port = 0
@@ -262,6 +407,17 @@ class server_instance:
             for val in stream:
                 for item in val.split("\n"):
                     if("rtvrtm" in item):
+                        return(True) 
+                
+        return False  
+
+    def get_mbii_ded_status(self):  
+
+        if(self._DOCKER_INSTANCE.is_active()):
+            stream =  self._DOCKER_INSTANCE.exec_run('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
+            for val in stream:
+                for item in val.split("\n"):
+                    if("mbii" in item):
                         return(True) 
                 
         return False  
@@ -317,6 +473,11 @@ class server_instance:
                         
         return "00:00:00"
  
+    def log(self):
+        stream = self._DOCKER_INSTANCE.read(self._SERVER_LOG_PATH)
+        for val in stream:
+            print(val)
+ 
     # Current Map
     def map(self):
 
@@ -336,18 +497,21 @@ class server_instance:
                 except IndexError:
                     pass
                        
-
         try: 
-            map = final_comp[7].split('\\')[30];
+            if(not final_comp == None):     
+                map = final_comp[7].split('\\')[30];
+
         except IndexError:
             pass
-
-                       
+       
         return map
      
-    def start(self, port):
+    def start(self):
 
-        self._PORT = port
+        self.generate_server_config()
+        self.generate_rtvrtm_config()
+        self.generate_rtvrtm_maps()
+        
         # Instance Running
         if(self._DOCKER_INSTANCE.is_active()):
             print(bcolors.OK + "Instance is already running..." + bcolors.ENDC)  
@@ -359,51 +523,60 @@ class server_instance:
             self._DOCKER_INSTANCE.stop()
         
         # Instance Can Start
-        print("-------------------------------------------")
-        print("Current MBII Version Is " + bcolors.OK + self._MB2_MANAGER.get_version() + bcolors.ENDC)
-        print("-------------------------------------------")
-        
-        print("Docker Instance: " + self._DOCKER_INSTANCE_NAME)
-        print("Port: " + self._PORT)
-        print("IP Address: " + self._EXTERNAL_IP + ":" + self._PORT)       
-        
-        print("Server Log " + self._SERVER_LOG_PATH)
-        print("-------------------------------------------")
-         
-        if(os.path.exists(self._SERVER_CONFIG_PATH)):
-            print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Found SERVER config at " +  self._SERVER_CONFIG_PATH)
-            
-            if(os.path.exists(self._RTVRTM_CONFIG_PATH)):
-                print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Found RTVRTM config at " + self._RTVRTM_CONFIG_PATH + bcolors.ENDC)
-                print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Enable Rock the Vote" + bcolors.ENDC)
 
-            else:
-                print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Found RTVRTM config at " +  self._RTVRTM_CONFIG_PATH + bcolors.ENDC)
-                print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Vote" + bcolors.ENDC)
+        if(os.path.exists(self._SERVER_CONFIG_PATH)):
+            print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Loaded SERVER config")
+                         
+            if(os.path.exists(self._RTVRTM_CONFIG_PATH)):
+                print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Loaded RTVRTM config")
                 
+                if(self._CONFIG['server']['enable_rtv']):
+                    print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Enable Rock the Vote")               
+                else:
+                    print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Vote")              
+                if(self._CONFIG['server']['enable_rtm']):
+                    print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Enable Rock the Mode")               
+                else:
+                    print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Mode")                 
+                
+            else:
+            
+                if(self._CONFIG['server']['enable_rtv'] or self._CONFIG['server']['enable_rtm']):
+                    print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Unable to Load RTVRTM config at " +  self._RTVRTM_CONFIG_PATH + bcolors.ENDC)                             
+                    
+                print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Vote")   
+                print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Mode")   
+
             print("-------------------------------------------")
             self._DOCKER_INSTANCE.start(self._PORT, "MBII", self._SERVER_CONFIG_NAME, self._RTVRTM_CONFIG_NAME)
 
         else:
-            print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Found SERVER config at " + self._SERVER_CONFIG_PATH)
+            print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Unable to Load SERVER config at " + self._SERVER_CONFIG_PATH)
             print(bcolors.FAIL + "Unable to proceed without a valid Server Config File" + bcolors.ENDC)
             exit()
 
     def status(self):
 
-        self._PORT = self.get_port()
-
         print("-------------------------------------------")
         if(self._DOCKER_INSTANCE.is_active()):
 
-            print(bcolors.CYAN + "Port: " + bcolors.ENDC + self._PORT)
+            active_port = self.get_port()
+            
             print(bcolors.CYAN + "Docker Instance: " + bcolors.ENDC + self._DOCKER_INSTANCE_NAME)
-            print(bcolors.CYAN + "Server Name: " + bcolors.ENDC + self.server_config_info() )
-            print(bcolors.CYAN + "Full Address: " + bcolors.ENDC + self._EXTERNAL_IP + ":" + self._PORT)
-            print(bcolors.CYAN + "Map: " + bcolors.ENDC + self.map()) 
-            print(bcolors.CYAN + "Uptime: " + bcolors.ENDC + self.uptime())
-            print("-------------------------------------------")     
-            print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Dedicated Server Running")
+            print(bcolors.CYAN + "Server Name: " + bcolors.ENDC + bcolors().mbii_color(self._CONFIG['server']['host_name']))
+            
+            if(self.get_mbii_ded_status()):   
+                print(bcolors.CYAN + "Port: " + bcolors.ENDC + str(active_port))
+                print(bcolors.CYAN + "Full Address: " + bcolors.ENDC + self._EXTERNAL_IP + ":" + str(active_port))
+                print(bcolors.CYAN + "Map: " + bcolors.ENDC + self.map()) 
+                print(bcolors.CYAN + "Uptime: " + bcolors.ENDC + self.uptime())
+                
+            print("-------------------------------------------") 
+            
+            if(self.get_mbii_ded_status()):               
+                print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Dedicated Server Running")
+            else:               
+                print(bcolors.FAIL + "[No] " + bcolors.ENDC + "MBII Dedicated is Not active")           
             
             if(self.get_rtv_status()):
                 print(bcolors.OK + "[Yes] " + bcolors.ENDC + "RTV Service Running")            
@@ -412,12 +585,14 @@ class server_instance:
           
             print("-------------------------------------------")   
                       
-            print("Players ")
-            
-            players = self.players()
-            
-            for player_id in players:
-                print(bcolors().mbii_color(players[player_id]))
+            if(self.get_mbii_ded_status()):             
+                      
+                print("Players ")
+                
+                players = self.players()
+                
+                for player_id in players:
+                    print(bcolors().mbii_color(players[player_id]) + bcolors.ENDC)
 
         elif(self._DOCKER_INSTANCE.is_error()):
             print("     " + bcolors.FAIL + "[No] " + bcolors.ENDC + "Dedicated Server Running - Instance in failed state" + bcolors.ENDC)
@@ -433,9 +608,8 @@ class server_instance:
         self._DOCKER_INSTANCE.stop()
 
     def restart(self):     
-        port = self._PORT
         self.stop()
-        self.start(port)           
+        self.start()           
                         
 # Probably want to split instance manager and make an "instance" it's own class....
 class instance_manager:
@@ -474,7 +648,6 @@ class instance_manager:
         
     def get_instance(self, name):
         return server_instance(name)      
-
 
 # Handles Checking Version of MB2, Updating, Downloading, Provisioning
 class mb2_manager:
@@ -532,13 +705,15 @@ class main:
         group = parser.add_mutually_exclusive_group()
         
         group.add_argument("-i", type=str, help="Action on Instance", nargs=2, metavar=('INSTANCE', 'ACTION'), dest="instance")   
-        group.add_argument("-l", action="store_true", help="List Instances", dest="list")  
-           
+        group.add_argument("-l", action="store_true", help="List Instances", dest="list")            
         group.add_argument("-u", action="store_true", help="Update MBII", dest="update")    
            
         parser.add_argument("-v", action="store_true", help="Verbosed Output", dest="verbose")   
         
         args = parser.parse_args()
+        
+        if(args.verbose):
+            globals._VERBOSE = True
         
         if(args.instance):
         
@@ -556,9 +731,5 @@ class main:
         elif(args.update):
             _INSTANCE_MANAGER.update()
         
-        if(args.verbose):
-            globals._VERBOSE = True
-
-       
 if __name__ == "__main__":
    main().main(sys.argv[1:])
