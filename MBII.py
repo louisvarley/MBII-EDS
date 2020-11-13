@@ -378,7 +378,8 @@ class server_instance:
         config_file_path = globals._CONFIG_PATH + "/" + self._NAME + ".json"
         
         if(not os.path.isfile(config_file_path)):
-            print(bcolors.FAIL + config_file_path + "was not found" + bcolors.ENDC)
+            print(bcolors.FAIL + "An Instance named " + self._NAME + " was not found! in " + globals._CONFIG_PATH + bcolors.ENDC)
+            exit()
     
         with open(config_file_path) as config_data:
             data = json.load(config_data)

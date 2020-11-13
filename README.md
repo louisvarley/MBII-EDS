@@ -19,18 +19,17 @@ This package comes with a management file to make managing servers easier and qu
 The Provided python script acts as a "Mangement client" for the images. So you need no knowledge of docker to quickly spin up and manage servers. 
 
 ## Setup Requires
-
-- Repo here is pulled and original Docker Image is pulled
-- Run `make` within the directory to build the image and allow the server to use this altered build
-- MBII (Linux) should be installed at /opt/openjk/MBII
-- OpenJK files "should" be called at /opt/openjk/base (image does come with them but these act as a fall back)
+- You must have docker installed. `sudo apt-get install docker.io`
+- Repo here is pulled `cd ~; git pull https://github.com/louisvarley/nr-mb2-docker-server.git`
+- Pull the original image `docker pull bsencan/jedi-academy-server` 
+- Run `make` within the directory to build the new image and allow the server to use this altered build in place of the above older one
+- MBII (Linux) should be downloaded and installed at /opt/openjk/MBII **(follow offical MBII instructions)**
+- OpenJK files "should" be installed at /opt/openjk/base Our image does come with the files needed but ensures we have every file we may need **(again follow official OpenJK Documention)**
 - Original JA Base files also in /opt/openjk/base
-- A folder in /opt/openjk/configs (See Configs)
 
-Now you can run the python script MBII.py with the following arguements
 
 ## Instances
-Instances are a single docker running a single MBII server. each instance has a instance name. This is normally one word refering to the server such as **open**
+"Instances" are a single docker running a single MBII server. each instance has a instance name. This is normally one word refering to the server such as **open**
 
 ## Creating an Instance
 
