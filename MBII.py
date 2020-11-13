@@ -304,19 +304,19 @@ class server_instance:
             
             # Mode
             
-            if(self._CONFIG['game']['mode'].lower() == "Open"):
+            if(self._CONFIG['game']['mode'].lower() == "open"):
                 data = data.replace("[mode]","0")   
                 
-            if(self._CONFIG['game']['mode'].lower() == "Semi-Authentic"):
+            if(self._CONFIG['game']['mode'].lower() == "semi-authentic"):
                 data = data.replace("[mode]","1") 
                 
-            if(self._CONFIG['game']['mode'].lower() == "Full-Authentic"):
+            if(self._CONFIG['game']['mode'].lower() == "full-authentic"):
                 data = data.replace("[mode]","2") 
                 
-            if(self._CONFIG['game']['mode'].lower() == "Duel"):
+            if(self._CONFIG['game']['mode'].lower() == "duel"):
                 data = data.replace("[mode]","3") 
                 
-            if(self._CONFIG['game']['mode'].lower() == "Legends"):
+            if(self._CONFIG['game']['mode'].lower() == "legends"):
                 data = data.replace("[mode]","4")    
 
             # Default if no matches were made
