@@ -89,14 +89,14 @@ Many things
 
 - [x] Docks will auto restart the dedicated server if for any reason it fails. 
 - [x] Use new JSON format files to setup the server
-- [ ] Log can read extracted by an action
+- [x] Log can be read and is extracted by an action
 - [ ] Setup to handle auto server messages on the server
 - [ ]  Make Python Management tool auto compile and be used as a binary 
 - [ ]  Create an install.sh file to setup all directories download OpenJK and MBII
 - [ ] Make management tool auto check for MBII updates and updates server
 - [ ] Wizard mode to create configs from scratch (maybe slightly gui)
-- [ ] Status action to show connected players
+- [x] Status action to show connected players, their ping and IP
 - [ ] Docks to auto reboot after 24 hours and when no players? maybe better than timed
-- [ ] Management tool to expose RCON and SMOD
+- [x] Management tool to expose RCON
 
 
