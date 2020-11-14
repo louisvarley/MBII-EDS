@@ -1,4 +1,4 @@
-#! bin/python
+#! bin/python -uSOO
 import sys, getopt
 import os
 import subprocess
@@ -7,6 +7,9 @@ import re
 import urllib2
 import argparse
 import json
+
+from socket import (socket, AF_INET, SOCK_STREAM, SOCK_DGRAM, SHUT_RDWR, gethostbyname_ex,
+                    gaierror, timeout as socketTimeout, error as socketError)
  
 # Holds Global Variables / Configs
 class globals:
@@ -205,6 +208,8 @@ class server_instance:
     _SERVER_LOG_NAME = None
     _SERVER_LOG_PATH = None
     
+    _RCON_CLIENT = None
+    
     def __init__(self, name):
     
         self._NAME = name
@@ -218,6 +223,8 @@ class server_instance:
         
         self._PORT = str(self._CONFIG['server']['port'])
         self._HOST_NAME = self._CONFIG['server']['host_name']
+
+        self._RCON_CLIENT = rcon_client(self._CONFIG['security']['rcon_password'], str(self._CONFIG['server']['port']))
 
         # server.CFG
         self._SERVER_CONFIG_NAME = self._NAME + "-server.cfg"
@@ -325,7 +332,11 @@ class server_instance:
             # Class Limits
             cl_string = ""
             for x in self._CONFIG['class_limits']:
-                cl_string = cl_string + str(self._CONFIG['class_limits'][x]) + "-"
+                limit = self._CONFIG['class_limits'][x]
+                if(limit < 10):
+                    limit = "0" + str(limit)
+                    
+                cl_string = cl_string + str(limit) + "-"
                 
             cl_string = cl_string.rstrip("-")
             data = data.replace("[class_limits]",cl_string)
@@ -423,16 +434,51 @@ class server_instance:
                 
         return False  
 
-    # Will use this to get config info
-    def server_config_info(self):
-        return "*STILL NEED TO CODE THIS*"
+    def rcon(self, command):
+        self._RCON_CLIENT.send(str(command))
        
+    def say(self, message):
+        self._RCON_CLIENT.send("svsay " + message)
+       
+    def map(self, map_name):
+         self._RCON_CLIENT.send("map " + map_name)       
+       
+    def mode(self, mode):   
+          self._RCON_CLIENT.send("g_gametype " + mode)
+
+    def kick(self, player):
+        self._RCON_CLIENT.send("kick " + player)
+        
+    def ban(self, ip):
+        self._RCON_CLIENT.send("addip " + ip)
+        
+    def unban(self, ip):
+        self._RCON_CLIENT.send("removeip " + ip)
+          
+    def listbans(self):
+        self._RCON_CLIENT.send("g_banips")
+           
     # Start an Interactive SSH Instance
     def ssh(self):   
         self._DOCKER_INSTANCE.ssh()
             
-    # Get list of players in server        
+    # Get list of players including IP and Ping using RCON
     def players(self):
+        
+        players = []
+        status = self._RCON_CLIENT.send("status", True).title()
+        status = status.split("\n") 
+        
+        x = 8
+        while(x < len(status)):
+
+            players.append(status[x].strip("  "))
+            x = x + 1
+            
+        return players
+        
+    # Get list of players in server by parsing log    
+    def players_using_log(self):
     
         players = {}
   
@@ -462,51 +508,40 @@ class server_instance:
                                     
         return players
      
-    # HH:MM:SS that MBIIDED has been running (not the docker)
+    # X Days Hs Ms Ss that server has been running using RCON
     def uptime(self):
 
-        if(self._DOCKER_INSTANCE.is_active()):
-                    stream =  self._DOCKER_INSTANCE.exec_run('ps -eo pid,comm,lstart,etime,time,args') #FYI Using Bars to merely return a the number with GREP causing an error so doing parsing line by line here
-                    for val in stream:
-                        for item in val.split("\n"):
-                            if("mbiided" in item):
-                                return(item.split()[7])
-                        
-        return "00:00:00"
+        try:
+
+            status = self._RCON_CLIENT.send("status", True).title()
+            status = status.split("\n") 
+            uptime = status[7].split(":")[1].lstrip(" ")
+
+        except:
+            uptime = "Error while fetching"
+            
+        return uptime 
  
     def log(self):
         stream = self._DOCKER_INSTANCE.read(self._SERVER_LOG_PATH)
         for val in stream:
             print(val)
  
-    # Current Map
+    # Current Map using RCON
     def map(self):
 
-        stream = self._DOCKER_INSTANCE.read(self._SERVER_LOG_PATH)
-        map = "unknown"
+        try:
 
-        for val in stream:
+            status = self._RCON_CLIENT.send("status", True).title()
+            status = status.split("\n") 
+            server_map = status[5].split(":")[1].lstrip(" ").lower().split(" ")[0]
 
-            for line in val.split("\n"):
-
-                line = helpers().fix_line(line)
-                line_comp = line.strip(",").split()
-                try: 
-                    if(line_comp[1] == "InitGame:"):                  
-                        final_comp = line_comp      
-                        
-                except IndexError:
-                    pass
-                       
-        try: 
-            if(not final_comp == None):     
-                map = final_comp[7].split('\\')[30];
-
-        except IndexError:
-            pass
-       
-        return map
+        except:
+            server_map = "Error while fetching"
+            
+        return server_map        
      
+    # Start Instance
     def start(self):
 
         self.generate_server_config()
@@ -556,13 +591,13 @@ class server_instance:
             print(bcolors.FAIL + "Unable to proceed without a valid Server Config File" + bcolors.ENDC)
             exit()
 
+    # Instance Status Information
     def status(self):
 
         print("-------------------------------------------")
         if(self._DOCKER_INSTANCE.is_active()):
-
+        
             active_port = self.get_port()
-            
             print(bcolors.CYAN + "Docker Instance: " + bcolors.ENDC + self._DOCKER_INSTANCE_NAME)
             print(bcolors.CYAN + "Server Name: " + bcolors.ENDC + bcolors().mbii_color(self._CONFIG['server']['host_name']))
             
@@ -592,8 +627,8 @@ class server_instance:
                 
                 players = self.players()
                 
-                for player_id in players:
-                    print(bcolors().mbii_color(players[player_id]) + bcolors.ENDC)
+                for player in players:
+                    print(bcolors().mbii_color(player) + bcolors.ENDC)
 
         elif(self._DOCKER_INSTANCE.is_error()):
             print("     " + bcolors.FAIL + "[No] " + bcolors.ENDC + "Dedicated Server Running - Instance in failed state" + bcolors.ENDC)
@@ -606,6 +641,13 @@ class server_instance:
         print("-------------------------------------------")
 
     def stop(self):
+    
+        if(os.path.exists(self._SERVER_CONFIG_PATH)):
+            os.remove(self._SERVER_CONFIG_PATH) 
+                         
+        if(os.path.exists(self._RTVRTM_CONFIG_PATH)):
+            os.remove(self._RTVRTM_CONFIG_PATH) 
+            
         self._DOCKER_INSTANCE.stop()
 
     def restart(self):     
@@ -678,6 +720,56 @@ class ojk_manager:
             
         return data        
 
+class rcon_client:
+
+    _RCON_PASSWORD = None
+    _SERVER_PORT = None
+    _CVAR = 0
+    _HEAD = (chr(255) + chr(255) + chr(255) + chr(255))
+
+    def __init__(self, rcon_password, server_port):
+        self._RCON_PASSWORD = rcon_password
+        self._SERVER_PORT = int(server_port)
+
+    def send(self, command, quiet = False):
+    
+        reply = None
+    
+        try:
+            if(not quiet):
+                print("sending {}").format(command)
+                
+            msgFromClient       = "rcon {} {}".format(self._RCON_PASSWORD, command)
+            bytesToSend         = str.encode(msgFromClient)
+            serverAddressPort   = ("127.0.0.1", 29073)
+            bufferSize          = 1024
+            sock = socket(family=AF_INET, type=SOCK_DGRAM)
+            socket.settimeout(sock, 4)
+            sock.sendto(self._HEAD + bytesToSend, serverAddressPort)
+            reply = sock.recvfrom(bufferSize)
+            reply = reply[0][4:]         
+            
+            
+        except(socket.timeout):
+            print("Unable to connect to server RCON")
+            
+        finally:
+            sock.close()
+
+        if reply.startswith("print\nbad rconpassword"):
+            print("Incorrect rcon password.")               
+
+        elif(reply.startswith("disconnect")):
+            print("got a disconnect response")               
+
+        elif not reply.startswith("print"):
+            print("Unexpected error while contacting server for the first time.")
+
+        if(not quiet):
+            print("Reply:{}".format(reply))
+            
+        return reply
+
 class main:
 
     _INSTANCE_MANAGER = None
@@ -686,39 +778,60 @@ class main:
 
     # Usage Banner
     def usage(self):
-        print("usage:")
-        print("MBII [-n -name] [-action {status start stop}] [-v -verbose]")  
-        print("MBII [-n -name] -rcon <command>") 
-        print("MBII [-n -name] -smod <command>")    
-        print("MBII [-l -list]")
+        print("usage: MBII [OPTIONS]")
+        print("")
+        print("Option                                    Name            Meaning")
+        print("-i <instance> [command] [optional args]   Instance        Use to run commands against a named instance")  
+        print("-l                                        List            List all Instances available")        
+        print("-u                                        Update          Check for MBII Updates, Update when ALL instances are empty")
+        print("-v                                        Verbose         Enable verbose mode")          
+        print("-h                                        Help            Show this help screen")  
+        
+        print("")
+        
+        print("Instance Commands")
+        print("Option             Description")
+        print("Start              Start Instance")
+        print("Stop               Stop Instance") 
+        print("Restart            Restart Instance") 
+        print("Status             Instance Status") 
+        print("rcon               Issue RCON Command In Argument") 
+        print("smod               Issue SMOD Command In Argument")         
+        
+        exit()
 
     # Main Function
     def main(self,argv):
     
         if(len(sys.argv) == 1):
-            usage()
-            exit()
+            self.usage()
             
         _INSTANCE_MANAGER = instance_manager()    
             
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(add_help=False)
         
         group = parser.add_mutually_exclusive_group()
         
-        group.add_argument("-i", type=str, help="Action on Instance", nargs=2, metavar=('INSTANCE', 'ACTION'), dest="instance")   
+        group.add_argument("-i", type=str, help="Action on Instance", nargs="+", metavar=('INSTANCE', 'ACTION', 'OPTIONAL_ARGS'), dest="instance")   
         group.add_argument("-l", action="store_true", help="List Instances", dest="list")            
         group.add_argument("-u", action="store_true", help="Update MBII", dest="update")    
-           
+        group.add_argument("-h", action="store_true", help="Help Usage", dest="help")  
         parser.add_argument("-v", action="store_true", help="Verbosed Output", dest="verbose")   
         
         args = parser.parse_args()
         
         if(args.verbose):
             globals._VERBOSE = True
+            
+        if(args.help):
+            self.usage()
         
         if(args.instance):
         
-             getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])()
+            if(len(args.instance) > 2):
+                getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])(args.instance[2])
+            else:
+                getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])()
         
             #try:
                 #getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])()
