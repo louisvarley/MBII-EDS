@@ -1,12 +1,15 @@
-#! bin/python -uSOO
+#!/usr/bin/python3
+
 import sys, getopt
 import os
 import subprocess
 import docker
 import re
-import urllib2
+import urllib.request
 import argparse
 import json
+import six
+import binascii
 
 from socket import (socket, AF_INET, SOCK_STREAM, SOCK_DGRAM, SHUT_RDWR, gethostbyname_ex,
                     gaierror, timeout as socketTimeout, error as socketError)
@@ -25,9 +28,12 @@ class globals:
                             _BASE_PATH: {'bind': '/opt/openjk/base', 'mode': 'ro'}, 
                             _CONFIG_PATH: {'bind': '/opt/openjk/configs', 'mode': 'ro'},              
                          }
- 
+  
 # Random Tools and Helpers
 class helpers:
+
+    def cvar_clean(self, text):
+        return re.sub("\^[1-9]","",text)
 
     def fix_line(self, line):
 
@@ -69,6 +75,7 @@ class bcolors:
     #^6 - purple 
     #^7 - white 
     #^0 - black 
+    #^9 - blank
 
     HEADER = '\033[95m'
     OK = '\033[92m'
@@ -97,7 +104,7 @@ class bcolors:
         text = text.replace("^6", self.PURPLE)
         text = text.replace("^7", self.WHITE)
         text = text.replace("^0", self.BLACK)
-        
+        text = text.replace("^9", "")        
         return text
         
 # An Instance of Docker
@@ -116,10 +123,10 @@ class docker_instance:
         self._DOCKER = docker.from_env()
         self._INSTANCE_NAME = name
 
-    def exec_run(self, command):
+    def exec(self, command):
         container = self._DOCKER.containers.list(all=True,filters={"name": self._INSTANCE_NAME})[0]
-        stream = container.exec_run(command, stdout=True, stderr=True, stream=True)
-        return stream
+        stream = container.exec_run(command, stdout=True, stderr=True)
+        return stream[1].decode()
 
     # Get Status of an Instance
     def status(self):
@@ -183,7 +190,7 @@ class docker_instance:
         sys.exit(0)
         
     def read(self, path):  
-        file_contents = self.exec_run("cat "+ path)
+        file_contents = self.exec("cat "+ path)
         return file_contents
              
 # An Instance of MBII                        
@@ -214,7 +221,8 @@ class server_instance:
     
         self._NAME = name
         self._DOCKER_INSTANCE_NAME = "mbii-ded-" + name
-        self._EXTERNAL_IP = urllib2.urlopen('http://ip.42.pl/raw').read()
+        self._EXTERNAL_IP = urllib.request.urlopen('http://ip.42.pl/raw').read().decode()
+        
         
         self._PRIMARY_MAP_PATH = globals._MB2_PATH + "/" + self._NAME + "-primary.txt"
         self._SECONDARY_MAP_PATH = globals._MB2_PATH + "/" + self._NAME + "-secondary.txt"
@@ -401,13 +409,12 @@ class server_instance:
     def get_port(self):  
         port = 0
         if(self._DOCKER_INSTANCE.is_active()):
-            stream =  self._DOCKER_INSTANCE.exec_run("netstat -tulpn | grep mbiided")
-            for val in stream:
-                for item in val.split("\n"):
-                    if "mbiided" in item:
-                        port = item.split()[3].split(":")[1];   
+            response =  self._DOCKER_INSTANCE.exec("netstat -tulpn | grep mbiided")
+            for item in response.splitlines():
+                if "mbiided" in item:
+                    port = item.split()[3].split(":")[1];   
 
-            if(port > 0):
+            if(int(port) > 0):
                 return str(port)  
 
         return None  
@@ -415,36 +422,81 @@ class server_instance:
     def get_rtv_status(self):  
 
         if(self._DOCKER_INSTANCE.is_active()):
-            stream =  self._DOCKER_INSTANCE.exec_run('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
-            for val in stream:
-                for item in val.split("\n"):
-                    if("rtvrtm" in item):
-                        return(True) 
+            response =  self._DOCKER_INSTANCE.exec('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
+            for item in response.splitlines():
+                if("rtvrtm" in item):
+                    return(True) 
                 
         return False  
 
     def get_mbii_ded_status(self):  
 
         if(self._DOCKER_INSTANCE.is_active()):
-            stream =  self._DOCKER_INSTANCE.exec_run('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
-            for val in stream:
-                for item in val.split("\n"):
-                    if("mbii" in item):
-                        return(True) 
+            response =  self._DOCKER_INSTANCE.exec('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
+            for item in response.splitlines():
+                if("mbii" in item):
+                    return(True) 
                 
         return False  
 
     def rcon(self, command):
         self._RCON_CLIENT.send(str(command))
        
+    def cvar(self, key, value = None):
+    
+        if(value == None): # GET a CVAR Value
+            response = self._RCON_CLIENT.send(key,True)
+            response = re.findall(r'"([^"]*)"', response)[0]
+            return helpers().cvar_clean(response)
+        
+        else: #SET a CVAR Value
+            response = self._RCON_CLIENT("set " + key + "=" + str(value))            
+    
+       
     def say(self, message):
         self._RCON_CLIENT.send("svsay " + message)
        
-    def map(self, map_name):
-         self._RCON_CLIENT.send("map " + map_name)       
-       
-    def mode(self, mode):   
-          self._RCON_CLIENT.send("g_gametype " + mode)
+    def map(self, map_name = None):
+    
+         if(not map_name == None):
+            self._RCON_CLIENT.send("map " + map_name)
+            return True
+         else:
+            try:
+
+                status = self._RCON_CLIENT.send("status", True).title()
+                status = status.split("\n") 
+                server_map = status[5].split(":")[1].lstrip(" ").lower().split(" ")[0]
+
+            except:
+                server_map = "Error while fetching"
+            
+            return server_map        
+           
+    def mode(self, mode = None):   
+
+         if(not mode == None):
+            self.cvar("g_Authenticity", mode)
+            return True
+         else:
+            #try:
+            mode = self.cvar("g_Authenticity").strip()
+            #0 = Open mode, 1 = Semi-Authentic, 2 = Full-Authentic, 3 = Duel, 4 = Legends
+            if(mode == "0"):
+                return "Open"
+            if(mode == "1"):
+                return "Semi-Authentic"
+            if(mode == "2"):
+                return "Full-Authentic"
+            if(mode == "3"):
+                return "Duel"
+            if(mode == "4"):                
+                return "Legends"
+                    
+            #except:
+               # mode = "Error while fetching"
+            
+            return mode  
 
     def kick(self, player):
         self._RCON_CLIENT.send("kick " + player)
@@ -527,20 +579,6 @@ class server_instance:
         for val in stream:
             print(val)
  
-    # Current Map using RCON
-    def map(self):
-
-        try:
-
-            status = self._RCON_CLIENT.send("status", True).title()
-            status = status.split("\n") 
-            server_map = status[5].split(":")[1].lstrip(" ").lower().split(" ")[0]
-
-        except:
-            server_map = "Error while fetching"
-            
-        return server_map        
-     
     # Start Instance
     def start(self):
 
@@ -605,6 +643,7 @@ class server_instance:
                 print(bcolors.CYAN + "Port: " + bcolors.ENDC + str(active_port))
                 print(bcolors.CYAN + "Full Address: " + bcolors.ENDC + self._EXTERNAL_IP + ":" + str(active_port))
                 print(bcolors.CYAN + "Map: " + bcolors.ENDC + self.map()) 
+                print(bcolors.CYAN + "Mode: " + bcolors.ENDC + bcolors().mbii_color(self.mode()))                 
                 print(bcolors.CYAN + "Uptime: " + bcolors.ENDC + self.uptime())
                 
             print("-------------------------------------------") 
@@ -730,26 +769,24 @@ class rcon_client:
     def __init__(self, rcon_password, server_port):
         self._RCON_PASSWORD = rcon_password
         self._SERVER_PORT = int(server_port)
-
+      
     def send(self, command, quiet = False):
     
         reply = None
     
         try:
             if(not quiet):
-                print("sending {}").format(command)
+                print("Sent:{}".format(command))
                 
-            msgFromClient       = "rcon {} {}".format(self._RCON_PASSWORD, command)
-            bytesToSend         = str.encode(msgFromClient)
-            serverAddressPort   = ("127.0.0.1", 29073)
+            send_command       = (self._HEAD + "rcon {} {}".format(self._RCON_PASSWORD, command))
+            serverAddressPort   = ("127.0.0.1", self._SERVER_PORT)
             bufferSize          = 1024
             sock = socket(family=AF_INET, type=SOCK_DGRAM)
-            socket.settimeout(sock, 4)
-            sock.sendto(self._HEAD + bytesToSend, serverAddressPort)
+            socket.settimeout(sock, 4)           
+            sock.sendto(six.b(send_command), serverAddressPort)
             reply = sock.recvfrom(bufferSize)
-            reply = reply[0][4:]         
-            
-            
+            reply = reply[0][4:].decode()             
+         
         except(socket.timeout):
             print("Unable to connect to server RCON")
             
@@ -828,8 +865,10 @@ class main:
         
         if(args.instance):
         
-            if(len(args.instance) > 2):
+            if(len(args.instance) == 3):
                 getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])(args.instance[2])
+            elif(len(args.instance) == 4):
+                 getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])(args.instance[2], args.instance[3])           
             else:
                 getattr(_INSTANCE_MANAGER.get_instance(args.instance[0]), args.instance[1])()
         
