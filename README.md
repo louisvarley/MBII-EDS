@@ -55,11 +55,11 @@ Ensure the port you use is one you have not already assigned to another instance
 Actions are run against an instance. 
 Some examples. Where "instances" are called Open, Dueling and Cheats
 
-`./MBII.py -i open start`
+`python3 ./MBII.py -i open start`
 
-`./MBII.py -i dueling restart`
+`python3 ./MBII.py -i dueling restart`
 
-`./MBII.py -i cheats-on stop`
+`python3 ./MBII.py -i cheats-on stop`
 
 There a number of actions that can be used when specifying an "instance" 
 
