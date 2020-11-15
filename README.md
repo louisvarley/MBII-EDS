@@ -78,6 +78,14 @@ Run a shell command on the instance
 #### log
 Returns the entire server log from the instance 
 *You can use > server.log to save this locally* 
+#### say [message] executes svsay on the server
+`python3 ./MBII.py -i dueling say "Hello Everyone"` would say "Server: Hello Everyone"
+#### rcon [rcon_commands]
+`python3 ./MBII.py -i legends rcon "myrconcommand argument"` would send this rcon command to the server
+#### cvar key value
+You can change CVAR values or just see what the value is using cvar command, for example 
+`python3 ./MBII.py -i open cvar g_authenticity 1` would change the mode
+`python3 ./MBII.py -i open cvar g_authenticity` would print the current the mode
 
 ### Vebose
 
