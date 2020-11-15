@@ -78,7 +78,8 @@ Run a shell command on the instance
 #### log
 Returns the entire server log from the instance 
 *You can use > server.log to save this locally* 
-#### say [message] executes svsay on the server
+#### say [message] 
+executes svsay on the server
 `python3 ./MBII.py -i dueling say "Hello Everyone"` would say "Server: Hello Everyone"
 #### rcon [rcon_commands]
 `python3 ./MBII.py -i legends rcon "myrconcommand argument"` would send this rcon command to the server
@@ -99,8 +100,8 @@ Many things
 - [x] Use new JSON format files to setup the server
 - [x] Log can be read and is extracted by an action
 - [ ] Setup to handle auto server messages on the server
-- [ ]  Make Python Management tool auto compile and be used as a binary 
-- [ ]  Create an install.sh file to setup all directories download OpenJK and MBII
+- [ ] Make Python Management tool auto compile and be used as a binary 
+- [ ] Create an install.sh file to setup all directories download OpenJK and MBII
 - [ ] Make management tool auto check for MBII updates and updates server
 - [ ] Wizard mode to create configs from scratch (maybe slightly gui)
 - [x] Status action to show connected players, their ping and IP
