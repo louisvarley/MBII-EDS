@@ -94,7 +94,7 @@ When you run the start action if there was a problem, you may not know unless it
 
 ### Adding to /usr/bin
 You can add this python script to `/usr/bin` using this command
-`ln -s /root/MovieBattlesII-Easy-Docker-Servers/MBII.py /usr/bin/MBII` 
+`ln -s /root/MBII-EDS/MBII.py /usr/bin/MBII` 
 ensuring that /root/MovieBattlesII-Easy-Docker-Servers/MBII.py points exactly to where your MBII.py is.
 This means you can merely run `MBII` from anywhere
 
