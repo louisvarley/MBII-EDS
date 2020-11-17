@@ -21,12 +21,21 @@ The Provided python script acts as a "Mangement client" for the images. So you n
 ## Setup Requires
 - You must have docker installed. `sudo apt-get install docker.io`
 - Repo here is pulled `cd ~; git pull https://github.com/louisvarley/nr-mb2-docker-server.git`
-- Pull the original image `docker pull bsencan/jedi-academy-server` 
+
+## Using Install.sh
+- run `chmod +x install.sh` and `./install.sh`
+
+## Manually
+
+- Run `ln -s /root/mbii-eds/mbii.py /usr/bin/mbii` 
+- Pull the original docker image `docker pull bsencan/jedi-academy-server` 
 - Run `make` within the directory to build the new image and allow the server to use this altered build in place of the above older one
+
+## Game Files
+
 - MBII (Linux) should be downloaded and installed at /opt/openjk/MBII **(follow offical MBII instructions)**
 - OpenJK files "should" be installed at /opt/openjk/base Our image does come with the files needed but ensures we have every file we may need **(again follow official OpenJK Documention)**
 - Original JA Base files also in /opt/openjk/base
-
 
 ## Instances
 "Instances" are a single docker running a single MBII server. each instance has a instance name. This is normally one word refering to the server such as **open**
@@ -92,12 +101,6 @@ You can change CVAR values or just see what the value is using cvar command, for
 
 When you run the start action if there was a problem, you may not know unless it was unable to find a given config file. You can view the output from the dedicated server directly by passing the `-v` arguement for Verbose mode. Pressing `Ctrl + c` will exit and the process will continue from then in non-verbose mode. 
 
-### Adding to /usr/bin
-You can add this python script to `/usr/bin` using this command
-`ln -s /root/MBII-EDS/MBII.py /usr/bin/MBII` 
-ensuring that /root/MovieBattlesII-Easy-Docker-Servers/MBII.py points exactly to where your MBII.py is.
-This means you can merely run `MBII` from anywhere
-
 ### Still to do
 
 Many things
@@ -106,7 +109,7 @@ Many things
 - [x] Use new JSON format files to setup the server
 - [x] Log can be read and is extracted by an action
 - [ ] Setup to handle auto server messages on the server
-- [ ] Make Python Management tool auto compile and be used as a binary 
+- [x] Make Python Management tool work as binary
 - [ ] Create an install.sh file to setup all directories download OpenJK and MBII
 - [ ] Make management tool auto check for MBII updates and updates server
 - [ ] Wizard mode to create configs from scratch (maybe slightly gui)
