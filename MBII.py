@@ -119,9 +119,10 @@ class docker_instance:
     _DOCKER = None
     _INSTANCE_NAME = None
     
-    def __init__(self, name):
+    def __init__(self, instance):
+        self._INSTANCE = instance
         self._DOCKER = docker.from_env()
-        self._INSTANCE_NAME = name
+        self._INSTANCE_NAME = self._INSTANCE._DOCKER_INSTANCE_NAME
 
     def exec(self, command):
         container = self._DOCKER.containers.list(all=True,filters={"name": self._INSTANCE_NAME})[0]
@@ -161,10 +162,11 @@ class docker_instance:
            print(bcolors.FAIL + "Instance " + self._INSTANCE_NAME + " not running..." + bcolors.ENDC)           
 
     # Start Instance
-    def start(self, port, game, server_config_name, rtvrtm_config_name):
+    def start(self):
+    
         if(not self.is_active() and not self.is_error()):
 
-                print(bcolors.OK + "Starting Instance of " + game + " on port " + port + "..." + bcolors.ENDC)
+                print(bcolors.OK + "Starting Instance of " + self._INSTANCE._CONFIG['server']['game'] + " on port " + self._INSTANCE._PORT + "..." + bcolors.ENDC)
 
                 container = self._DOCKER.containers.create(
                     image='bsencan/jedi-academy-server',
@@ -174,16 +176,21 @@ class docker_instance:
                     command='/bin/sh',
                     volumes=globals._VOLUME_BINDINGS,
                     network_mode ='host',
-                    environment={"NET_PORT":port, "NET_GAME":game, "SERVER_CONFIG":server_config_name, "RTVRTM_CONFIG":rtvrtm_config_name}
-                )    
+                    environment={"NET_RESTART_HOUR": self._INSTANCE._CONFIG['server']['schedule_restart_hour'],
+                                 "NET_PORT":self._INSTANCE._PORT, 
+                                 "NET_GAME":self._INSTANCE._CONFIG['server']['game'], 
+                                 "SERVER_CONFIG":self._INSTANCE._SERVER_CONFIG_NAME, 
+                                 "RTVRTM_CONFIG":self._INSTANCE._RTVRTM_CONFIG_NAME, 
+                                 "SERVER_ENGINE": self._INSTANCE._CONFIG['server']['engine']
+                                 }
+                                                            )    
                 
                 container.start()
                 
-                stream = container.exec_run("/opt/openjk/start.sh", stdout=globals._VERBOSE, stderr=globals._VERBOSE, stream=globals._VERBOSE)
-
-                if(globals._VERBOSE):
-                    for val in stream:
-                        print (val)
+                exec_log = container.exec_run("/opt/openjk/start.sh", stdout=globals._VERBOSE, stderr=globals._VERBOSE, stream=globals._VERBOSE)
+                
+                for line in exec_log[1]:
+                    print(line.decode())
 
     def ssh(self):
         os.system("docker exec -it " + self._INSTANCE_NAME + " bash")
@@ -246,7 +253,7 @@ class server_instance:
         self._SERVER_LOG_NAME = self._NAME + "-games.log"
         self._SERVER_LOG_PATH = globals._DOCKER_BASE_PATH + "/" + self._SERVER_LOG_NAME
         
-        self._DOCKER_INSTANCE = docker_instance(self._DOCKER_INSTANCE_NAME)
+        self._DOCKER_INSTANCE = docker_instance(self)
         
         # If instance running grab port
         if(self._DOCKER_INSTANCE.is_active()):
@@ -304,6 +311,7 @@ class server_instance:
             data = data.replace("[admin_10_config]",str(self._CONFIG['smod']['admin_10']['config']))
 
             # Maps
+ 
  
             data = data.replace("[map_1]",self._CONFIG['map_rotation_order'][0])
             data = data.replace("[map_2]",self._CONFIG['map_rotation_order'][1])
@@ -434,7 +442,7 @@ class server_instance:
         if(self._DOCKER_INSTANCE.is_active()):
             response =  self._DOCKER_INSTANCE.exec('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
             for item in response.splitlines():
-                if("mbii" in item):
+                if(self._CONFIG['server']['engine'] in item):
                     return(True) 
                 
         return False  
@@ -622,8 +630,9 @@ class server_instance:
                 print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Enable Rock the Mode")   
 
             print("-------------------------------------------")
-            self._DOCKER_INSTANCE.start(self._PORT, "MBII", self._SERVER_CONFIG_NAME, self._RTVRTM_CONFIG_NAME)
-
+            i = self._CONFIG
+            self._DOCKER_INSTANCE.start()
+            #self._CONFIG, game="MBII",port=self._PORT,config_name=self._SERVER_CONFIG_NAME,rtvrtm_config_name=self._RTVRTM_CONFIG_NAME)
         else:
             print(bcolors.FAIL + "[No] " + bcolors.ENDC + "Unable to Load SERVER config at " + self._SERVER_CONFIG_PATH)
             print(bcolors.FAIL + "Unable to proceed without a valid Server Config File" + bcolors.ENDC)
@@ -641,6 +650,8 @@ class server_instance:
             
             if(self.get_mbii_ded_status()):   
                 print(bcolors.CYAN + "Port: " + bcolors.ENDC + str(active_port))
+                print(bcolors.CYAN + "Mod: " + bcolors.ENDC + str(self._CONFIG['server']['game']))
+                print(bcolors.CYAN + "Engine: " + bcolors.ENDC + str(self._CONFIG['server']['engine']))                
                 print(bcolors.CYAN + "Full Address: " + bcolors.ENDC + self._EXTERNAL_IP + ":" + str(active_port))
                 print(bcolors.CYAN + "Map: " + bcolors.ENDC + self.map()) 
                 print(bcolors.CYAN + "Mode: " + bcolors.ENDC + bcolors().mbii_color(self.mode()))                 
@@ -834,6 +845,7 @@ class main:
         print("Status             Instance Status") 
         print("rcon               Issue RCON Command In Argument") 
         print("smod               Issue SMOD Command In Argument")         
+
         
         exit()
 

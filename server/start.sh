@@ -5,6 +5,11 @@
 [ -z "$NET_GAME" ] && NET_GAME=base
 [ -z "$RTVRTM_CONFIG" ] && RTVRTM_CONFIG=
 [ -z "$SERVER_CONFIG" ] && SERVER_CONFIG=open-server.cfg
+[ -z "$SERVER_ENGINE" ] && SERVER_ENGINE="mbiided.i386"
+[ -z "$NET_RESTART_HOUR" ] && NET_RESTART_HOUR="7"
+
+
+
 
 # Colors
 RESTORE='\033[0m'
@@ -38,6 +43,7 @@ echo "Docker Initialised with the following config"
 
 echo "Port: $NET_PORT"
 echo "Game: $NET_GAME"
+echo "Engine: $SERVER_ENGINE"
 echo "Server Config: $SERVER_CONFIG"
 echo "RTMRTV Config: $RTVRTM_CONFIG"
 echo "----------------------------------"
@@ -65,6 +71,13 @@ if [ -f "/opt/openjk/MBII/${SERVER_CONFIG}" ]; then
 	cp /opt/openjk/MBII/$SERVER_CONFIG /opt/openjk/${NET_GAME}/$SERVER_CONFIG	
 else
     echo-red "Server Config on HOST at /opt/openjk/MBII/${SERVER_CONFIG} Not Found. Cannot Continue..."
+    exit 1
+fi
+
+if [ -f "/usr/bin/$SERVER_ENGINE" ]; then
+    echo-green "Server engine $SERVER_ENGINE successfully found in /usr/bin"
+else
+    echo-red "Server engine $SERVER_ENGINE not found in /usr/bin, cannot continue"
     exit 1
 fi
 
@@ -103,7 +116,7 @@ cd /opt/openjk/
 
 sleep 4
 
-until (sleep 1; mbiided +set dedicated 2 +set net_port "$NET_PORT" +set fs_game MBII +exec "$SERVER_CONFIG"); do
+until (sleep 1; $SERVER_ENGINE +set dedicated 2 +set net_port "$NET_PORT" +set fs_game MBII +exec "$SERVER_CONFIG"); do
     echo "Dedicated Server crashed with exit code $?. Restarting..." >&2
 done
 # Start the server.
