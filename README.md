@@ -1,10 +1,8 @@
 
-## New Republic Clan Docker Server Manager
+## Movie Battles II / OpenJK Easy Docker Service Manager
 
 Built for the **MBII New Republic Clan** 
-This is a docker image and a helper python management program to run many server instances using quickly and easily.
-
-This can be used as and where is needed.
+This is a docker image and a python management script which runs as a binary. Allowing simple `mbii` commands to be issues to control server instances
 
 ## Introduction
 This image is based on an older docker build by https://github.com/isair/jedi-academy-server
