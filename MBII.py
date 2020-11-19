@@ -10,6 +10,10 @@ import argparse
 import json
 import six
 import binascii
+import shlex
+import psutil
+
+from subprocess import Popen, PIPE, STDOUT
 
 from socket import (socket, AF_INET, SOCK_STREAM, SOCK_DGRAM, SHUT_RDWR, gethostbyname_ex,
                     gaierror, timeout as socketTimeout, error as socketError)
@@ -28,6 +32,8 @@ class globals:
                             _BASE_PATH: {'bind': '/opt/openjk/base', 'mode': 'ro'}, 
                             _CONFIG_PATH: {'bind': '/opt/openjk/configs', 'mode': 'ro'},              
                          }
+                         
+     
   
 # Random Tools and Helpers
 class helpers:
@@ -199,6 +205,20 @@ class docker_instance:
     def read(self, path):  
         file_contents = self.exec("cat "+ path)
         return file_contents
+        
+    def ping_test(self, location, host):
+        host = host.split(':')[0]
+        cmd = "fping {host} -C 3 -q".format(host=host)
+        # result = str(get_simple_cmd_output(cmd)).replace('\\','').split(':')[-1].split() if x != '-']
+        result = self.exec(cmd)
+        result = str(result).replace('\\', '').split(':')[-1].replace("n'", '').replace("-",'').replace("b''", '').split()
+        res = [float(x) for x in result]
+        if len(res) > 0:
+            speed = round(sum(res) / len(res),2)
+        else:
+            speed = 999  
+
+        print(location + ": " + str(round(speed,2)) + "ms")
              
 # An Instance of MBII                        
 class server_instance:
@@ -206,24 +226,20 @@ class server_instance:
     _NAME = None
     _HOST_NAME = None
     _DOCKER_INSTANCE_NAME = None 
-    _DOCKER_INSTANCE = None
-    
+    _DOCKER_INSTANCE = None    
     _EXTERNAL_IP = None
     _PORT = None
-    
     _PRIMARY_MAP_PATH = None
     _SECONDARY_MAP_PATH = None
-    
     _SERVER_CONFIG_NAME = None
     _SERVER_CONFIG_PATH = None
     _RTVRTM_CONFIG_NAME = None
     _RTVRTM_CONFIG_PATH = None
-    
     _SERVER_LOG_NAME = None
     _SERVER_LOG_PATH = None
+    _UDP_CLIENT = None
     
-    _RCON_CLIENT = None
-    
+    # Constructor
     def __init__(self, name):
     
         self._NAME = name
@@ -239,7 +255,7 @@ class server_instance:
         self._PORT = str(self._CONFIG['server']['port'])
         self._HOST_NAME = self._CONFIG['server']['host_name']
 
-        self._RCON_CLIENT = rcon_client(self._CONFIG['security']['rcon_password'], str(self._CONFIG['server']['port']))
+        self._UDP_CLIENT = udp_client(self._CONFIG['security']['rcon_password'], str(self._CONFIG['server']['port']))
 
         # server.CFG
         self._SERVER_CONFIG_NAME = self._NAME + "-server.cfg"
@@ -259,6 +275,7 @@ class server_instance:
         if(self._DOCKER_INSTANCE.is_active()):
             self._PORT = self.get_port()
        
+    # Generate a server.cfg from JSON config   
     def generate_server_config(self):
         with open(globals._CONFIG_PATH + "/server.template", 'r') as file:
             data = file.read()
@@ -362,6 +379,7 @@ class server_instance:
             f.write(data)
             f.close()
 
+    # Generate an RTV RTM Config from JSON config
     def generate_rtvrtm_config(self):
     
         if(self._CONFIG['server']['enable_rtv'] or self._CONFIG['server']['enable_rtm']):
@@ -388,7 +406,8 @@ class server_instance:
             f = open(self._RTVRTM_CONFIG_PATH, "w")
             f.write(data)
             f.close()    
-              
+       
+    # Generate RTV RTM Maps List from JSON config
     def generate_rtvrtm_maps(self):
     
         if(self._CONFIG['server']['enable_rtv']):
@@ -399,7 +418,8 @@ class server_instance:
             f = open(self._SECONDARY_MAP_PATH, "w")
             f.write("\n".join(self._CONFIG['secondary_maps']))
             f.close()           
-                       
+      
+    # Fetch config JSON to dictionary
     def get_config(self):
     
         config_file_path = globals._CONFIG_PATH + "/" + self._NAME + ".json"
@@ -413,7 +433,7 @@ class server_instance:
             
         return data
        
-    # Method to Grab the Port used by OpenJK Server by running netstat
+    # Use netstat to get the port used by this instance
     def get_port(self):  
         port = 0
         if(self._DOCKER_INSTANCE.is_active()):
@@ -427,6 +447,7 @@ class server_instance:
 
         return None  
 
+    # Is RTV / RTM Service running and instance
     def get_rtv_status(self):  
 
         if(self._DOCKER_INSTANCE.is_active()):
@@ -437,7 +458,8 @@ class server_instance:
                 
         return False  
 
-    def get_mbii_ded_status(self):  
+    # Is the chosen engine running an instance
+    def get_ded_engine_status(self):  
 
         if(self._DOCKER_INSTANCE.is_active()):
             response =  self._DOCKER_INSTANCE.exec('ps ax') #FYI Using Bars to merely return a 0 or 1 with GREP causing an error so doing parsing line by line here
@@ -447,147 +469,155 @@ class server_instance:
                 
         return False  
 
+    # Run an RCON command
     def rcon(self, command):
-        self._RCON_CLIENT.send(str(command))
+        return self._UDP_CLIENT.send(str(command))
        
+    # Run a console command
+    def cmd(self, command):
+        return self._UDP_CLIENT.cmd(command, True)       
+       
+    # Get / Set a CVAR
     def cvar(self, key, value = None):
     
         if(value == None): # GET a CVAR Value
-            response = self._RCON_CLIENT.send(key,True)
-            response = re.findall(r'"([^"]*)"', response)[0]
-            return helpers().cvar_clean(response)
+            response = self._UDP_CLIENT.rcon(key,True)
+            try:
+                response = re.findall(r'"([^"]*)"', response)[0]
+                result = helpers().cvar_clean(response)
+                
+            except:    
+                print("Error, unknown or invalid cvar")
+
+            return result
         
         else: #SET a CVAR Value
-            response = self._RCON_CLIENT("set " + key + "=" + str(value))            
-    
+            response = self._UDP_CLIENT.rcon("set " + key + "=" + str(value))            
        
+    # Run an SVSAY command
     def say(self, message):
-        self._RCON_CLIENT.send("svsay " + message)
+        self._UDP_CLIENT.send("svsay " + message)
        
+    # Get / Set current map
     def map(self, map_name = None):
     
          if(not map_name == None):
-            self._RCON_CLIENT.send("map " + map_name)
+            self._UDP_CLIENT.rcon("map " + map_name, True)
             return True
          else:
             try:
-
-                status = self._RCON_CLIENT.send("status", True).title()
-                status = status.split("\n") 
-                server_map = status[5].split(":")[1].lstrip(" ").lower().split(" ")[0]
-
+                server_map = self.cvar("mapname")
+               
             except:
                 server_map = "Error while fetching"
             
             return server_map        
-           
+        
+    # Get / Set current mode
     def mode(self, mode = None):   
 
          if(not mode == None):
             self.cvar("g_Authenticity", mode)
             return True
          else:
-            #try:
-            mode = self.cvar("g_Authenticity").strip()
-            #0 = Open mode, 1 = Semi-Authentic, 2 = Full-Authentic, 3 = Duel, 4 = Legends
-            if(mode == "0"):
-                return "Open"
-            if(mode == "1"):
-                return "Semi-Authentic"
-            if(mode == "2"):
-                return "Full-Authentic"
-            if(mode == "3"):
-                return "Duel"
-            if(mode == "4"):                
-                return "Legends"
-                    
-            #except:
-               # mode = "Error while fetching"
+            try:
+                mode = self.cvar("g_Authenticity", None).strip()
+                #0 = Open mode, 1 = Semi-Authentic, 2 = Full-Authentic, 3 = Duel, 4 = Legends
+                if(mode == "0"):
+                    return "Open"
+                if(mode == "1"):
+                    return "Semi-Authentic"
+                if(mode == "2"):
+                    return "Full-Authentic"
+                if(mode == "3"):
+                    return "Duel"
+                if(mode == "4"):                
+                    return "Legends"     
+                        
+            except:
+               mode = "Error while fetching"
             
             return mode  
 
+    # Server uptime as a string
+    def uptime(self):
+
+        #try:
+
+        status = self._UDP_CLIENT.rcon("status", True).title()
+        status = status.split("\n") 
+        uptime = status[7].split(":")[1].lstrip(" ")
+
+        #except:
+         #   uptime = "Error while fetching"
+            
+        return uptime 
+ 
+    # Kick a player
     def kick(self, player):
-        self._RCON_CLIENT.send("kick " + player)
+        self._UDP_CLIENT.send("kick " + player)
         
+    # Ban a player    
     def ban(self, ip):
-        self._RCON_CLIENT.send("addip " + ip)
-        
+        self._UDP_CLIENT.send("addip " + ip)
+       
+    # Unban a player
     def unban(self, ip):
-        self._RCON_CLIENT.send("removeip " + ip)
-          
+        self._UDP_CLIENT.send("removeip " + ip)
+       
+    # List banned players
     def listbans(self):
-        self._RCON_CLIENT.send("g_banips")
+        self._UDP_CLIENT.send("g_banips")
            
     # Start an Interactive SSH Instance
     def ssh(self):   
         self._DOCKER_INSTANCE.ssh()
             
-    # Get list of players including IP and Ping using RCON
+    # Int of the number of players in game        
+    def players_count(self):
+        return len(self.players())
+            
+    # Get list of players in game
     def players(self):
         
         players = []
-        status = self._RCON_CLIENT.send("status", True).title()
-        status = status.split("\n") 
+        status = self.cmd("getstatus")
+        status = status.split("\n")
         
-        x = 8
-        while(x < len(status)):
-
-            players.append(status[x].strip("  "))
+        x = 2
+        while(x < int(len(status)-1)):
+            line = str(status[x])
+            line_split = shlex.split(line)
+            player = line_split[2]
+            players.append(player)
             x = x + 1
             
         return players
         
-    # Get list of players in server by parsing log    
-    def players_using_log(self):
-    
-        players = {}
-  
-        stream = self._DOCKER_INSTANCE.read(self._SERVER_LOG_PATH)
-  
-        for val in stream:
-        
-            for line in val.split("\n"):
-
-                line = helpers().fix_line(line)
-                line_comp = line.strip(",").split()
-                try: 
-                    if(line_comp[1] == "ClientConnect:"):                  
-                        line_tmp = line.split()   
-                        player_name = line_comp[2].strip("()")
-                        player_id = line_comp[4]
-                        players[player_id] = player_name                     
-                    if(line_comp[1] == "ClientDisconnect:"):     
-                        try:
-                            player_id = line_comp[2]
-                            del players[player_id]
-                        except KeyError:
-                          pass                       
-                        
-                except IndexError:
-                    pass
-                                    
-        return players
-     
-    # X Days Hs Ms Ss that server has been running using RCON
-    def uptime(self):
-
-        try:
-
-            status = self._RCON_CLIENT.send("status", True).title()
-            status = status.split("\n") 
-            uptime = status[7].split(":")[1].lstrip(" ")
-
-        except:
-            uptime = "Error while fetching"
-            
-        return uptime 
- 
+    # Print the server log
     def log(self):
         stream = self._DOCKER_INSTANCE.read(self._SERVER_LOG_PATH)
         for val in stream:
             print(val)
  
-    # Start Instance
+    # Run an automated test on a number of things printing results
+    def test(self):
+    
+        response = urllib.request.urlopen('http://ipinfo.io/json')
+        lookup = json.load(response)
+        print("Testing from {} {}".format(self._EXTERNAL_IP, lookup['region']))
+        print("-------------------------------------------")
+        self._DOCKER_INSTANCE.ping_test("CA Central", "35.182.0.251")    
+        self._DOCKER_INSTANCE.ping_test("EU East", "35.178.0.253")
+        self._DOCKER_INSTANCE.ping_test("EU Central", "18.196.0.253")
+        self._DOCKER_INSTANCE.ping_test("EU West", "34.240.0.253")
+        self._DOCKER_INSTANCE.ping_test("US WEST", "52.52.63.252")
+        self._DOCKER_INSTANCE.ping_test("US EAST", "35.153.128.254")
+        print("-------------------------------------------")
+        print("CPU Usage: {}%".format(str(psutil.cpu_percent())))
+        print("Memory Usage: {}%".format(str(psutil.virtual_memory().percent)))       
+         
+    # Start this instance
     def start(self):
 
         self.generate_server_config()
@@ -648,18 +678,18 @@ class server_instance:
             print(bcolors.CYAN + "Docker Instance: " + bcolors.ENDC + self._DOCKER_INSTANCE_NAME)
             print(bcolors.CYAN + "Server Name: " + bcolors.ENDC + bcolors().mbii_color(self._CONFIG['server']['host_name']))
             
-            if(self.get_mbii_ded_status()):   
+            if(self.get_ded_engine_status()):   
                 print(bcolors.CYAN + "Port: " + bcolors.ENDC + str(active_port))
                 print(bcolors.CYAN + "Mod: " + bcolors.ENDC + str(self._CONFIG['server']['game']))
                 print(bcolors.CYAN + "Engine: " + bcolors.ENDC + str(self._CONFIG['server']['engine']))                
                 print(bcolors.CYAN + "Full Address: " + bcolors.ENDC + self._EXTERNAL_IP + ":" + str(active_port))
-                print(bcolors.CYAN + "Map: " + bcolors.ENDC + self.map()) 
-                print(bcolors.CYAN + "Mode: " + bcolors.ENDC + bcolors().mbii_color(self.mode()))                 
+                print(bcolors.CYAN + "Map: " + bcolors.ENDC + self.map(None)) 
+                print(bcolors.CYAN + "Mode: " + bcolors.ENDC + self.mode(None))                 
                 print(bcolors.CYAN + "Uptime: " + bcolors.ENDC + self.uptime())
                 
             print("-------------------------------------------") 
             
-            if(self.get_mbii_ded_status()):               
+            if(self.get_ded_engine_status()):               
                 print(bcolors.OK + "[Yes] " + bcolors.ENDC + "Dedicated Server Running")
             else:               
                 print(bcolors.FAIL + "[No] " + bcolors.ENDC + "MBII Dedicated is Not active")           
@@ -671,14 +701,18 @@ class server_instance:
           
             print("-------------------------------------------")   
                       
-            if(self.get_mbii_ded_status()):             
+            if(self.get_ded_engine_status()):             
                       
                 print("Players ")
                 
                 players = self.players()
                 
-                for player in players:
-                    print(bcolors().mbii_color(player) + bcolors.ENDC)
+                if(len(players) > 0):
+                
+                    for player in players:
+                        print(bcolors().mbii_color(player) + bcolors.ENDC)
+                else:
+                    print(bcolors.FAIL + "No one is playing"  + bcolors.ENDC )
 
         elif(self._DOCKER_INSTANCE.is_error()):
             print("     " + bcolors.FAIL + "[No] " + bcolors.ENDC + "Dedicated Server Running - Instance in failed state" + bcolors.ENDC)
@@ -690,6 +724,7 @@ class server_instance:
 
         print("-------------------------------------------")
 
+    # Stop the instance
     def stop(self):
     
         if(os.path.exists(self._SERVER_CONFIG_PATH)):
@@ -700,47 +735,29 @@ class server_instance:
             
         self._DOCKER_INSTANCE.stop()
 
+    # Stop then start the instance
     def restart(self):     
         self.stop()
         self.start()           
                         
-# Probably want to split instance manager and make an "instance" it's own class....
-class instance_manager:
-
-    # Instance now, different from the Docker Instance name (more friendly version)
-    _NAME = None
-    
-    # Docker Instance name 
-    _DOCKER_INSTANCE_NAME = None
-    
-    # External IP   
-    _EXTERNAL_IP = None
-    
-    # Port is set either when instance started or fetched if already running
-    _PORT = None
-    _DOCKER_INSTANCE = None
-    
-    
-    _SERVER_CONFIG_NAME = None
-    _SERVER_CONFIG_PATH = None
-    _RTVRTM_CONFIG_NAME = None
-    _RTVRTM_CONFIG_PATH = None
-    _SERVER_LOG_NAME = None
-    _SERVER_LOG_PATH = None
+# Instance manager is used to setup and get instances
+class manager:
 
     _MB2_PATH = "/opt/openjk/MBII"
-    _BASE_PATH = "/opt/openjk/base"
-    
     _MB2_MANAGER = None
-    _OJK_MANAGER = None
-    
+
     # Set Instance name and Get External IP
     def __init__(self):
         self._MB2_MANAGER = mb2_manager(self._MB2_PATH)
-        self._OJK_MANAGER = ojk_manager(self._BASE_PATH)
         
     def get_instance(self, name):
         return server_instance(name)      
+        
+    def list(self):
+        config_file_path = globals._CONFIG_PATH
+        for filename in os.listdir(config_file_path):
+            if(filename.endswith(".json")):
+                print(filename.replace(".json",""))
 
 # Handles Checking Version of MB2, Updating, Downloading, Provisioning
 class mb2_manager:
@@ -756,21 +773,8 @@ class mb2_manager:
             
         return data
         
-# Handles Checking Version of OJK, Updating, Downloading, Provisioning
-class ojk_manager:
-
-    BASE_PATH = None
-    
-    def __init__(self, base_path):
-        self.BASE_PATH = base_path
-        
-    def get_version(self):
-        with open(self.BASE_PATH + '/version.info', 'r') as file:
-            data = file.read().replace('\n', '')
-            
-        return data        
-
-class rcon_client:
+# Client for Handling RCON, SMOD and RAW server UDP Commands  
+class udp_client:
 
     _RCON_PASSWORD = None
     _SERVER_PORT = None
@@ -781,7 +785,7 @@ class rcon_client:
         self._RCON_PASSWORD = rcon_password
         self._SERVER_PORT = int(server_port)
       
-    def send(self, command, quiet = False):
+    def rcon(self, command, quiet = False):
     
         reply = None
     
@@ -798,7 +802,7 @@ class rcon_client:
             reply = sock.recvfrom(bufferSize)
             reply = reply[0][4:].decode()             
          
-        except(socket.timeout):
+        except:
             print("Unable to connect to server RCON")
             
         finally:
@@ -818,6 +822,41 @@ class rcon_client:
             
         return reply
 
+    def cmd(self, command, quiet = False):
+    
+        reply = None
+    
+        try:
+            if(not quiet):
+                print("Sent:{}".format(command))
+                
+            send_command       = (self._HEAD + "{}".format(command))
+            serverAddressPort   = ("127.0.0.1", self._SERVER_PORT)
+            bufferSize          = 1024
+            sock = socket(family=AF_INET, type=SOCK_DGRAM)
+            socket.settimeout(sock, 4)           
+            sock.sendto(six.b(send_command), serverAddressPort)
+            reply = sock.recvfrom(bufferSize)
+            reply = reply[0][4:].decode()             
+         
+        except:
+            print("Unable to connect to server")
+            
+        finally:
+            sock.close()   
+
+        if(reply == None):
+            return "No Response"
+
+        elif(reply.startswith("disconnect")):
+            print("got a disconnect response")               
+
+        if(not quiet):
+            print("Reply:{}".format(reply))
+            
+        return reply    
+
+# Main Class
 class main:
 
     _INSTANCE_MANAGER = None
@@ -855,12 +894,11 @@ class main:
         if(len(sys.argv) == 1):
             self.usage()
             
-        _INSTANCE_MANAGER = instance_manager()    
+        _INSTANCE_MANAGER = manager()    
             
         parser = argparse.ArgumentParser(add_help=False)
         
         group = parser.add_mutually_exclusive_group()
-        
         group.add_argument("-i", type=str, help="Action on Instance", nargs="+", metavar=('INSTANCE', 'ACTION', 'OPTIONAL_ARGS'), dest="instance")   
         group.add_argument("-l", action="store_true", help="List Instances", dest="list")            
         group.add_argument("-u", action="store_true", help="Update MBII", dest="update")    
@@ -874,6 +912,12 @@ class main:
             
         if(args.help):
             self.usage()
+            exit()
+            
+        if(args.list):
+            _INSTANCE_MANAGER.list()
+            exit()
+            
         
         if(args.instance):
         

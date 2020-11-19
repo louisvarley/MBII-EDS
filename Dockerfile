@@ -14,6 +14,7 @@ RUN apt-get install -y zlib1g:i386
 RUN apt-get install -y curl:i386 
 RUN apt-get install -y python-setuptools python-dev 
 RUN apt-get install -y net-tools
+RUN apt-get install -y fping
 
 # Mount game data volume.
 VOLUME /opt/openjk/MBII
@@ -30,8 +31,11 @@ COPY server/rd-vanilla_i386.so /usr/lib/
 COPY server/OpenJK/* /opt/openjk/
 
 # Binaries
-COPY server/openjkded.i386 /usr/bin/openjkded
-copy server/mbiided.i386 /usr/bin/mbiided
+#COPY server/openjkded.i386 /usr/bin/openjkded
+#COPY server/mbiided.i386 /usr/bin/mbiided
+COPY server/*.i386 /usr/bin/
+
+COPY server/OpenJK/jampgamei386.so /root/.local/share/openjk/MBII/jampgamei386.so
 
 # Scripts
 COPY server/rtvrtm.py /opt/rtvrtm/rtvrtm.py
@@ -44,8 +48,9 @@ WORKDIR /opt/openjk
 
 # Start the server.
 
-RUN chmod +x /usr/bin/openjkded
-RUN chmod +x /usr/bin/mbiided
+#RUN chmod +x /usr/bin/openjkded
+#RUN chmod +x /usr/bin/mbiided
+RUN chmod +x /usr/bin/*.i386
 RUN chmod +x /opt/openjk/start.sh
 
 CMD ["/opt/openjk/start.sh"]
