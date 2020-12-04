@@ -1,9 +1,13 @@
 
 ## Try the Updated Version for Non-Docker Based Management ##
 
-When doing this i noticed potential lag issues with servers running through docker with some clients. I decided to start again, with a entire new project. 
+When doing this i noticed lag issues with servers running through docker with some clients. 
+I decided to start again, with a entire new project and address some other issues. This project is now archived. 
 
-https://github.com/louisvarley/mbii-eez is the updated version Movie Battles II eez, similar to this project, with some new features added. All instances run entirely natively and not through docker, which is a shame as docker makes management MUCH easier. 
+https://github.com/louisvarley/mbii-eez is the updated version 
+Movie Battles II eez, similar to this project, with some new features added. 
+All instances run entirely natively and not through docker, which is a shame as docker makes management MUCH easier. 
+
 
 ## LEGACY Movie Battles II / OpenJK Easy Docker Service Manager
 
